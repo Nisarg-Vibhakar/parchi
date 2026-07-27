@@ -201,7 +201,15 @@ class CaptureActivity : Activity() {
         s.addView(rule())
         s.addView(action("+ ADD A PAYMENT") { show(manualSlip()) })
         s.addView(quiet("SEE THE FULL RECEIPT") {
-            startActivity(Intent(this, HomeActivity::class.java)); finish()
+            startActivity(
+                Intent(this, HomeActivity::class.java)
+                    // Its own task, so the app appears in recents. The modal is
+                    // excludeFromRecents by design — a two-second interaction has
+                    // no business in the recents list — but anything launched from
+                    // it inherits that task and disappears too.
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            finish()
         })
         return s
     }

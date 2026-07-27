@@ -37,24 +37,28 @@
         <activity
             android:name=".ui.HomeActivity"
             android:exported="true"
+            android:taskAffinity="dev.nisarg.paisa.main"
             android:theme="@style/HomeTheme"
             android:label="Paisa" />
 
         <activity
             android:name=".ui.SplitActivity"
             android:exported="true"
+            android:taskAffinity="dev.nisarg.paisa.main"
             android:theme="@style/HomeTheme"
             android:label="Split" />
 
         <activity
             android:name=".ui.FileActivity"
             android:exported="true"
+            android:taskAffinity="dev.nisarg.paisa.main"
             android:theme="@style/HomeTheme"
             android:label="Filing" />
 
         <activity
             android:name=".ui.DebugActivity"
             android:exported="true"
+            android:taskAffinity="dev.nisarg.paisa.main"
             android:label="Paisa diagnostics" />
 
         <!-- The ear. Granted via Settings > Notification access, not a runtime prompt. -->
