@@ -67,7 +67,7 @@ class CallActivity : Activity() {
             override fun onTick(remaining: Long) {
                 val elapsed = System.currentTimeMillis() - started
                 face?.pulse = (elapsed % 1400L) / 1400f
-                timerLabel?.text = "ringing  %d:%02d".format(elapsed / 60000, (elapsed / 1000) % 60)
+                timerLabel?.text = Caller.ringingLabel(elapsed)
                 // A double buzz every three seconds, like a real ringtone pattern.
                 if (elapsed - lastBuzz > 3000) {
                     lastBuzz = elapsed
@@ -129,7 +129,8 @@ class CallActivity : Activity() {
             layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
         })
         roll.addView(line(who.name, 22f, Receipt.ink, bold = true, centre = true, topPad = 4))
-        roll.addView(line(Caller.subtitle(who.mood), 10f, Receipt.inkFaint, centre = true, topPad = 3))
+        roll.addView(line(Caller.subtitle(who.mood, db.missedCalls().size), 10f,
+            Receipt.inkFaint, centre = true, topPad = 3))
         roll.addView(line("\"${who.line}\"", 12.5f, Receipt.stampAmber, centre = true, topPad = 8))
 
         // The line that actually lands: your own biggest payment today, read back
@@ -166,10 +167,17 @@ class CallActivity : Activity() {
 
         roll.addView(rule("─"))
         roll.addView(action(Caller.answerLabel(who.mood), Receipt.stampGreen) {
+            // Answering should cost something: they get the last word first.
+            ringer?.cancel()
+            timerLabel?.text = "connected"
+            android.widget.Toast.makeText(this, Caller.greeting(who.mood),
+                android.widget.Toast.LENGTH_LONG).show()
             db.clearSnooze()
-            startActivity(Intent(this, FileActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            finish()
+            timerLabel?.postDelayed({
+                startActivity(Intent(this, FileActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                finish()
+            }, 1400L)
         })
         // Snoozing is not dismissal: it survives in the app so a busy evening
         // cannot quietly erase the day.

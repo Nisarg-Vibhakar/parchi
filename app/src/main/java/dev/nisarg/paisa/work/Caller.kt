@@ -27,6 +27,10 @@ object Caller {
         Persona("MUMMY", "beta, aaj toh kuch kharcha hi nahi kiya!", Mood.JOY),
         Persona("FUTURE YOU", "whatever you did today, keep doing it.", Mood.JOY),
         Persona("YOUR CA", "I have nothing to complain about. Unsettling.", Mood.JOY),
+        Persona("YOUR EMERGENCY FUND", "I EXIST? since when?", Mood.JOY),
+        Persona("YOUR MUTUAL FUND", "someone finally loves me.", Mood.JOY),
+        Persona("GOD", "no notes. carry on.", Mood.JOY),
+        Persona("THE SWIGGY ALGORITHM", "you have hurt me and I respect it.", Mood.JOY),
     )
 
     private val CALM = listOf(
@@ -34,6 +38,10 @@ object Caller {
         Persona("THE AUDITOR", "boringly fine. carry on.", Mood.CALM),
         Persona("YOUR BANK MANAGER", "no reason. genuinely just a chat.", Mood.CALM),
         Persona("FUTURE YOU", "on track. do not get cocky.", Mood.CALM),
+        Persona("AN ANONYMOUS WELL-WISHER", "no reason. keep going.", Mood.CALM),
+        Persona("NPCI SERVER ROOM", "routine ping. you are fine.", Mood.CALM),
+        Persona("YOUR UPI ID", "we have been busy. not badly.", Mood.CALM),
+        Persona("THE MIDDLE PATH", "sustainable. boring. correct.", Mood.CALM),
     )
 
     private val CONCERN = listOf(
@@ -41,6 +49,10 @@ object Caller {
         Persona("THE LANDLORD", "just checking in. no reason at all.", Mood.CONCERN),
         Persona("MUMMY", "beta... kitna kharcha kiya aaj?", Mood.CONCERN),
         Persona("YOUR CA", "we should talk about today.", Mood.CONCERN),
+        Persona("THE SWIGGY DELIVERY GUY", "we have grown close. I am worried.", Mood.CONCERN),
+        Persona("YOUR FORMER SELF (2019)", "we had plans, remember?", Mood.CONCERN),
+        Persona("THE PETROL PUMP GUY", "back so soon?", Mood.CONCERN),
+        Persona("YOUR STEP COUNT", "unrelated. but also concerned.", Mood.CONCERN),
     )
 
     private val ALARM = listOf(
@@ -48,6 +60,10 @@ object Caller {
         Persona("GST COUNCIL", "you are not in trouble. yet.", Mood.ALARM),
         Persona("YOUR CREDIT CARD", "I think we should see other people.", Mood.ALARM),
         Persona("THE AUDITOR", "found something interesting today.", Mood.ALARM),
+        Persona("FRAUD DEPARTMENT", "we assumed it was fraud. it was not.", Mood.ALARM),
+        Persona("THE ZOMATO ALGORITHM", "I know what you did. I enabled it.", Mood.ALARM),
+        Persona("YOUR EMERGENCY FUND", "there is no emergency fund.", Mood.ALARM),
+        Persona("EVERY ATM IN AHMEDABAD", "we compared notes.", Mood.ALARM),
     )
 
     private val DOOM = listOf(
@@ -55,6 +71,10 @@ object Caller {
         Persona("YOUR WALLET", "calling from the ICU.", Mood.DOOM),
         Persona("FUTURE YOU", "calling from 2045. we need to discuss.", Mood.DOOM),
         Persona("RBI GOVERNOR", "took a personal interest in your case.", Mood.DOOM),
+        Persona("YOUR FUTURE CHILDREN", "we heard about the bike.", Mood.DOOM),
+        Persona("THE GHOST OF YOUR SIP", "you cancelled me. for THIS?", Mood.DOOM),
+        Persona("GOD", "even I saw that one.", Mood.DOOM),
+        Persona("CONFERENCE CALL: CA + MUMMY", "we have all been talking.", Mood.DOOM),
     )
 
     /**
@@ -153,12 +173,42 @@ object Caller {
         Mood.DOOM -> "decline (it will not help)"
     }
 
-    /** Caller-ID chrome, the way a real call screen lies to you. */
-    fun subtitle(mood: Mood): String = when (mood) {
-        Mood.JOY -> "mobile · india · spam risk: none"
-        Mood.CALM -> "mobile · india · verified caller"
-        Mood.CONCERN -> "mobile · india · calls frequently"
-        Mood.ALARM -> "unknown number · india · 4 missed"
-        Mood.DOOM -> "withheld number · do not decline"
+    /** Caller-ID chrome, degrading exactly as a real one would not. */
+    fun subtitle(mood: Mood, missed: Int = 0): String {
+        val tail = if (missed > 0) " · $missed missed" else ""
+        return when (mood) {
+            Mood.JOY -> "mobile · india · spam risk: none$tail"
+            Mood.CALM -> "mobile · india · verified caller$tail"
+            Mood.CONCERN -> "mobile · india · calls frequently$tail"
+            Mood.ALARM -> "unknown number · india · do not ignore$tail"
+            Mood.DOOM -> "withheld number · calling from inside the house$tail"
+        }
+    }
+
+    /**
+     * The timer text, which loses its composure the longer you leave it ringing.
+     * A counter that only counts is a counter you stop reading.
+     */
+    fun ringingLabel(elapsedMs: Long): String {
+        val mmss = "%d:%02d".format(elapsedMs / 60000, (elapsedMs / 1000) % 60)
+        return when {
+            elapsedMs < 10_000 -> "ringing  $mmss"
+            elapsedMs < 22_000 -> "still ringing  $mmss"
+            elapsedMs < 40_000 -> "they are not hanging up  $mmss"
+            elapsedMs < 70_000 -> "this is your life now  $mmss"
+            else -> "we can do this all night  $mmss"
+        }
+    }
+
+    /**
+     * What they say the instant you pick up, before the app gets on with it.
+     * Answering should cost something too.
+     */
+    fun greeting(mood: Mood): String = when (mood) {
+        Mood.JOY -> "\"...that is genuinely all I wanted to say. Bye.\""
+        Mood.CALM -> "\"Right. Shall we get this over with.\""
+        Mood.CONCERN -> "\"Sit down. No, properly sit down.\""
+        Mood.ALARM -> "\"Do not hang up. I have the statement open.\""
+        Mood.DOOM -> "\"I have taken the liberty of opening a file.\""
     }
 }

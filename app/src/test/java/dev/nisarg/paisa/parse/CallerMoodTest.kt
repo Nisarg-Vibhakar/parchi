@@ -89,7 +89,7 @@ class CallerMoodTest {
             assertTrue(Caller.jibe("Shop", 5000L, 2, m)!!.isNotBlank())
             assertTrue(Caller.answerLabel(m).isNotBlank())
             assertTrue(Caller.declineLabel(m).isNotBlank())
-            assertTrue(Caller.subtitle(m).isNotBlank())
+            assertTrue(Caller.subtitle(m, 0).isNotBlank())
         }
     }
 
@@ -97,5 +97,36 @@ class CallerMoodTest {
     @Test fun `answer labels differ by mood`() {
         val labels = Mood.entries.map { Caller.answerLabel(it) }.toSet()
         assertEquals(Mood.entries.size, labels.size)
+    }
+
+    // ---- losing composure --------------------------------------------------
+
+    /** A counter that only counts is a counter you stop reading. */
+    @Test fun `the ringing label escalates the longer it is ignored`() {
+        val labels = listOf(1_000L, 15_000L, 30_000L, 50_000L, 90_000L)
+            .map { Caller.ringingLabel(it).substringBefore("  ") }
+        assertEquals("each stage should read differently", labels.size, labels.toSet().size)
+    }
+
+    @Test fun `the ringing label always carries the clock`() =
+        assertTrue(Caller.ringingLabel(65_000L).contains("1:05"))
+
+    @Test fun `missed calls appear in the caller id`() =
+        assertTrue(Caller.subtitle(Mood.ALARM, 3).contains("3 missed"))
+
+    @Test fun `no missed calls means no missed-call line`() =
+        assertTrue(!Caller.subtitle(Mood.JOY, 0).contains("missed"))
+
+    @Test fun `every mood has something to say when you pick up`() {
+        val greetings = Mood.entries.map { Caller.greeting(it) }
+        assertEquals(Mood.entries.size, greetings.toSet().size)
+        for (g in greetings) assertTrue(g.isNotBlank())
+    }
+
+    @Test fun `the roster is big enough not to repeat within a week`() {
+        for (m in Mood.entries) {
+            val n = Caller.all.count { it.mood == m }
+            assertTrue("$m has only $n voices", n >= 7)
+        }
     }
 }
