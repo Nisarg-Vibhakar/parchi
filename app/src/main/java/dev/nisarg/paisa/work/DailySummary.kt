@@ -140,7 +140,18 @@ object DailySummary {
 
         db.logCall(spent, unfiled)
 
-        val who = Caller.forDay(System.currentTimeMillis() / 86_400_000L)
+        val salaryNow = db.lastSalary()
+        val state = salaryNow?.let {
+            val gap = Cycle.typicalGapDays(db.salaryHistory().map { s -> s.at })
+            Cycle.State(it.at, it.at + gap * Cycle.DAY_MS, it.amountMinor,
+                db.spentBetween(it.at, now), now)
+        }
+        val who = Caller.forSpend(
+            spentTodayMinor = spent,
+            allowancePerDayMinor = state?.allowancePerDayMinor ?: 0L,
+            cycleOverspent = state?.overspent == true,
+            epochDay = System.currentTimeMillis() / 86_400_000L,
+        )
         val fullScreen = PendingIntent.getActivity(
             context, 3,
             Intent(context, dev.nisarg.paisa.ui.CallActivity::class.java)
@@ -183,7 +194,21 @@ object DailySummary {
         }
 
         nm.notify(NOTIFICATION_ID, builder.build())
-        Log.i(TAG, "calling as ${who.name}: $title")
+
+        // The notification alone only takes the screen when the phone is locked.
+        // With the overlay permission granted we can put the call up regardless,
+        // which is the entire point — a call you can ignore is a notification.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M ||
+            android.provider.Settings.canDrawOverlays(context)
+        ) {
+            runCatching {
+                context.startActivity(
+                    Intent(context, dev.nisarg.paisa.ui.CallActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                )
+            }.onFailure { Log.w(TAG, "could not take the screen: ${it.message}") }
+        }
+        Log.i(TAG, "calling as ${who.name} (${who.mood}): $title")
     }
 }
 

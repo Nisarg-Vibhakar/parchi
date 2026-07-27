@@ -43,11 +43,68 @@ class CallActivity : Activity() {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         }
-        val epochDay = System.currentTimeMillis() / 86_400_000L
-        setContentView(build(Caller.forDay(epochDay)))
+        val who = whoIsCalling()
+        setContentView(build(who))
+        startRinging(who)
     }
 
+    private var ringer: android.os.CountDownTimer? = null
+    private var face: CallerFace? = null
+    private var timerLabel: TextView? = null
+
     private fun money(m: Long) = Money.format(m).removePrefix("₹")
+
+    /**
+     * Rings: pulsing avatar, a counting timer, and a heartbeat buzz. A static
+     * screen reads as a dialog; motion is what makes it feel like a call you have
+     * to deal with.
+     */
+    private fun startRinging(who: Caller.Persona) {
+        val started = System.currentTimeMillis()
+        val vibrator = getSystemService(android.os.Vibrator::class.java)
+        ringer = object : android.os.CountDownTimer(10 * 60_000L, 60L) {
+            var lastBuzz = 0L
+            override fun onTick(remaining: Long) {
+                val elapsed = System.currentTimeMillis() - started
+                face?.pulse = (elapsed % 1400L) / 1400f
+                timerLabel?.text = "ringing  %d:%02d".format(elapsed / 60000, (elapsed / 1000) % 60)
+                // A double buzz every three seconds, like a real ringtone pattern.
+                if (elapsed - lastBuzz > 3000) {
+                    lastBuzz = elapsed
+                    runCatching {
+                        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(
+                            longArrayOf(0, 90, 120, 90), -1))
+                    }
+                }
+            }
+            override fun onFinish() {}
+        }.start()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        ringer?.cancel()
+    }
+
+    /** The caller is chosen by what today actually cost. */
+    private fun whoIsCalling(): Caller.Persona {
+        val startOfDay = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        val now = System.currentTimeMillis()
+        val state = db.lastSalary()?.let {
+            val gap = Cycle.typicalGapDays(db.salaryHistory().map { s -> s.at })
+            Cycle.State(it.at, it.at + gap * Cycle.DAY_MS, it.amountMinor,
+                db.spentBetween(it.at, now), now)
+        }
+        return Caller.forSpend(
+            db.spentBetween(startOfDay, now),
+            state?.allowancePerDayMinor ?: 0L,
+            state?.overspent == true,
+            now / 86_400_000L,
+        )
+    }
 
     private fun build(who: Caller.Persona): View {
         val startOfDay = Calendar.getInstance().apply {
@@ -65,8 +122,26 @@ class CallActivity : Activity() {
 
         roll.addView(line("INCOMING", 10.5f, Receipt.inkFaint, centre = true,
             tracking = 0.3f, topPad = 10))
-        roll.addView(line(who.name, 22f, Receipt.ink, bold = true, centre = true, topPad = 6))
-        roll.addView(line("\"${who.line}\"", 12f, Receipt.stampAmber, centre = true, topPad = 6))
+        roll.addView(LinearLayout(this).apply {
+            gravity = Gravity.CENTER
+            setPadding(0, px(6), 0, px(2))
+            addView(CallerFace(this@CallActivity, who.mood).also { face = it })
+            layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
+        })
+        roll.addView(line(who.name, 22f, Receipt.ink, bold = true, centre = true, topPad = 4))
+        roll.addView(line(Caller.subtitle(who.mood), 10f, Receipt.inkFaint, centre = true, topPad = 3))
+        roll.addView(line("\"${who.line}\"", 12.5f, Receipt.stampAmber, centre = true, topPad = 8))
+
+        // The line that actually lands: your own biggest payment today, read back
+        // to you by someone disappointed about it.
+        val top = db.biggestToday(startOfDay, now)
+        Caller.jibe(top?.first?.let { db.displayName(it) }, top?.second ?: 0L,
+            db.countBetween(startOfDay, now), who.mood)?.let {
+            roll.addView(line("\"$it\"", 11.5f, Receipt.inkSoft, centre = true, topPad = 6))
+        }
+
+        timerLabel = line("ringing  0:00", 10f, Receipt.inkFaint, centre = true, topPad = 8)
+        roll.addView(timerLabel)
         roll.addView(rule("═"))
 
         roll.addView(leaderRow("SPENT TODAY", money(db.spentBetween(startOfDay, now)),
@@ -90,7 +165,7 @@ class CallActivity : Activity() {
         }
 
         roll.addView(rule("─"))
-        roll.addView(action("ANSWER  —  SORT IT NOW", Receipt.stampGreen) {
+        roll.addView(action(Caller.answerLabel(who.mood), Receipt.stampGreen) {
             db.clearSnooze()
             startActivity(Intent(this, FileActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -103,7 +178,7 @@ class CallActivity : Activity() {
             DailySummary.scheduleSnoozeCallback(this, 2 * 60 * 60 * 1000L)
             finish()
         })
-        roll.addView(quiet("DECLINE") {
+        roll.addView(quiet(Caller.declineLabel(who.mood)) {
             db.snooze(0L)   // still recorded, just not called back
             finish()
         })

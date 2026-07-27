@@ -13,6 +13,12 @@
     <!-- Lets the summary take over the screen like a call instead of sitting in
          the shade where a money notification is swiped away unread. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <!-- Android only honours a full-screen intent when the screen is locked; it
+         downgrades to a heads-up otherwise, deliberately, so apps cannot hijack
+         a screen you are using. Caller-ID and alarm apps get past that with the
+         overlay permission, which also lifts the background-activity-launch
+         restriction. Granted by the user in Settings, never silently. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application

@@ -1452,6 +1452,21 @@ class PaisaDb(context: Context) : SQLiteOpenHelper(context.applicationContext, N
         return out
     }
 
+    /** The day's largest single payment: payee and amount. */
+    fun biggestToday(from: Long, to: Long): Pair<String?, Long>? {
+        readableDatabase.rawQuery(
+            """
+            SELECT p.merchant_raw, p.amount_minor
+            FROM parsed_txn p JOIN raw_events r ON r.id = p.raw_event_id
+            WHERE p.rejected_reason IS NULL AND p.direction = 'DEBIT'
+              AND p.amount_minor IS NOT NULL AND $NOT_A_TRANSFER
+              AND r.posted_at >= ? AND r.posted_at < ?
+            ORDER BY p.amount_minor DESC LIMIT 1
+            """.trimIndent(),
+            arrayOf(from.toString(), to.toString())
+        ).use { return if (it.moveToFirst()) it.getString(0) to it.getLong(1) else null }
+    }
+
     fun uncategorisedCount(): Int =
         readableDatabase.rawQuery(
             """
