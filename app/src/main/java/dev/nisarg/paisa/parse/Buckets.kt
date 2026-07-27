@@ -49,6 +49,67 @@ object Buckets {
     enum class State { NO_BASELINE, QUIET, NORMAL, RUNNING_HOT, OVER }
 
     /**
+     * A bucket the user set, rather than one derived from history.
+     *
+     * Three things the derived version could not express, all of which came
+     * straight from how a real person described their own budget:
+     *
+     * GROUPS — people think "fuel and transport" as one envelope, not two lines.
+     *
+     * PERIODS — a utility bill arriving every second month against a monthly
+     * bucket reads as zero, then double. It would alternate between "quiet" and
+     * "over" forever, and a signal that is always wrong is one you learn to
+     * ignore. A bucket spanning N cycles is compared across N cycles.
+     *
+     * INTENT — the median only knows what you did. You may know what you mean to
+     * do, and that is a different number.
+     */
+    data class Plan(
+        val label: String,
+        val categories: Set<String>,
+        val amountMinor: Long,
+        /** 1 = every cycle. 2 = a bill that arrives every second cycle. */
+        val periodCycles: Int = 1,
+    )
+
+    data class PlannedBucket(
+        val plan: Plan,
+        /** Spend across the whole period window, not just this cycle. */
+        val spentMinor: Long,
+        /** How far through the period we are, 0..1. */
+        val periodFraction: Double,
+    ) {
+        val remainingMinor: Long get() = plan.amountMinor - spentMinor
+        val ratio: Double
+            get() = if (plan.amountMinor <= 0) 0.0
+            else spentMinor.toDouble() / plan.amountMinor
+
+        val state: State
+            get() = when {
+                plan.amountMinor <= 0 -> State.NO_BASELINE
+                ratio > 1.0 -> State.OVER
+                ratio > periodFraction + 0.15 -> State.RUNNING_HOT
+                ratio < periodFraction - 0.15 -> State.QUIET
+                else -> State.NORMAL
+            }
+    }
+
+    /**
+     * @param spendByCategory totals across the bucket's whole period window.
+     */
+    fun evaluate(
+        plans: List<Plan>,
+        spendByCategory: Map<String, Long>,
+        periodFraction: (Plan) -> Double,
+    ): List<PlannedBucket> = plans.map { plan ->
+        PlannedBucket(
+            plan = plan,
+            spentMinor = plan.categories.sumOf { spendByCategory[it] ?: 0L },
+            periodFraction = periodFraction(plan).coerceIn(0.0, 1.0),
+        )
+    }.sortedByDescending { it.plan.amountMinor }
+
+    /**
      * @param historyByCycle per-category totals for each COMPLETED cycle, newest
      *   first. The current cycle is excluded by the caller — including a
      *   part-finished cycle would drag every baseline down.

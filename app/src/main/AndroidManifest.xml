@@ -125,6 +125,7 @@
                 <action android:name="dev.nisarg.paisa.SIMULATE_SMS" />
                 <action android:name="dev.nisarg.paisa.SETTLE_SMALL" />
                 <action android:name="dev.nisarg.paisa.DAILY_NOW" />
+                <action android:name="dev.nisarg.paisa.SET_BUCKET" />
             </intent-filter>
         </receiver>
 

@@ -34,6 +34,7 @@ class DebugReceiver : BroadcastReceiver() {
         const val SIMULATE_SMS = "dev.nisarg.paisa.SIMULATE_SMS"
         const val SETTLE_SMALL = "dev.nisarg.paisa.SETTLE_SMALL"
         const val DAILY_NOW = "dev.nisarg.paisa.DAILY_NOW"
+        const val SET_BUCKET = "dev.nisarg.paisa.SET_BUCKET"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -81,6 +82,21 @@ class DebugReceiver : BroadcastReceiver() {
                         val (n, v) = db.countSmallBefore(maxMinor, before)
                         val done = db.settleSmallBefore(maxMinor, before)
                         Log.i(TAG, "SETTLE_SMALL expected=$n value=$v settled=$done")
+                    }
+                    SET_BUCKET -> {
+                        val label = intent.getStringExtra("label").orEmpty()
+                        val cats = intent.getStringExtra("categories").orEmpty()
+                        val rupees = intent.getLongExtra("rupees", 0L)
+                        val period = intent.getIntExtra("period", 1)
+                        if (label.isBlank() || cats.isBlank()) {
+                            Log.w(TAG, "SET_BUCKET needs --es label/--es categories")
+                        } else {
+                            PaisaDb.get(app).setBucketPlan(
+                                dev.nisarg.paisa.parse.Buckets.Plan(
+                                    label, cats.split(",").map { it.trim() }.toSet(),
+                                    rupees * 100, period))
+                            Log.i(TAG, "SET_BUCKET $label = $rupees over $period cycle(s)")
+                        }
                     }
                     DAILY_NOW -> dev.nisarg.paisa.work.DailySummary.post(app)
                     DELETE_RAW -> {
