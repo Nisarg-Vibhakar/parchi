@@ -108,7 +108,7 @@ class CaptureActivity : Activity() {
 
     private fun confirmSlip(p: PaisaDb.Pending): LinearLayout {
         val s = slipBody()
-        s.addView(line("P A I S A", 12f, Receipt.inkSoft, bold = true,
+        s.addView(line("P A R C H I", 12f, Receipt.inkSoft, bold = true,
             centre = true, tracking = 0.3f, topPad = 8))
         s.addView(rule("═"))
         s.addView(line("YOU PAID", 10.5f, Receipt.inkSoft, tracking = 0.18f))
@@ -130,7 +130,7 @@ class CaptureActivity : Activity() {
 
     private fun manualSlip(): LinearLayout {
         val s = slipBody()
-        s.addView(line("P A I S A", 12f, Receipt.inkSoft, bold = true,
+        s.addView(line("P A R C H I", 12f, Receipt.inkSoft, bold = true,
             centre = true, tracking = 0.3f, topPad = 8))
         s.addView(rule("═"))
         s.addView(line("ENTER AMOUNT", 10.5f, Receipt.inkSoft, tracking = 0.18f))
@@ -163,7 +163,7 @@ class CaptureActivity : Activity() {
 
     private fun manualCategorySlip(amountMinor: Long): LinearLayout {
         val s = slipBody()
-        s.addView(line("P A I S A", 12f, Receipt.inkSoft, bold = true,
+        s.addView(line("P A R C H I", 12f, Receipt.inkSoft, bold = true,
             centre = true, tracking = 0.3f, topPad = 8))
         s.addView(rule("═"))
         s.addView(line("ADDING", 10.5f, Receipt.inkSoft, tracking = 0.18f))
@@ -189,7 +189,7 @@ class CaptureActivity : Activity() {
         val week = startOfDay - 6L * 24 * 60 * 60 * 1000
 
         val s = slipBody()
-        s.addView(line("P A I S A", 12f, Receipt.inkSoft, bold = true,
+        s.addView(line("P A R C H I", 12f, Receipt.inkSoft, bold = true,
             centre = true, tracking = 0.3f, topPad = 8))
         s.addView(rule("═"))
         s.addView(line("SPENT TODAY", 10.5f, Receipt.inkSoft, tracking = 0.18f))

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A torn paper slip — a parchi.
+
+  Drawn as vectors so there are no bitmaps to go soft on a large display, and
+  so the whole icon is a few hundred bytes. Everything sits inside the adaptive
+  icon's safe zone (the centre 66 of 108), because launchers mask the edges to
+  whatever shape the device uses.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- the slip, with a perforated tear along the bottom -->
+    <path
+        android:fillColor="#EDE8DA"
+        android:pathData="M35,27 L73,27 L73,71
+            L69.2,77 L65.4,71 L61.6,77 L57.8,71 L54,77
+            L50.2,71 L46.4,77 L42.6,71 L38.8,77 L35,71 Z" />
+
+    <!-- ruled lines: a total, then two shorter entries, like a real receipt -->
+    <path android:fillColor="#13120F" android:pathData="M41,36 L67,36 L67,39.5 L41,39.5 Z" />
+    <path android:fillColor="#13120F" android:pathData="M41,46 L61,46 L61,48.5 L41,48.5 Z" />
+    <path android:fillColor="#13120F" android:pathData="M41,54 L56,54 L56,56.5 L41,56.5 Z" />
+
+    <!-- the amount, right-aligned, the way a figure sits on a receipt -->
+    <path android:fillColor="#D4574A" android:pathData="M58,62 L67,62 L67,64.5 L58,64.5 Z" />
+</vector>

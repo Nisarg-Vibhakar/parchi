@@ -11,8 +11,9 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
-        android:label="Paisa"
-        android:icon="@android:drawable/ic_menu_save"
+        android:label="Parchi"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false"
         android:supportsRtl="true">
 
@@ -21,7 +22,7 @@
         <activity
             android:name=".ui.CaptureActivity"
             android:exported="true"
-            android:label="Paisa"
+            android:label="Parchi"
             android:theme="@style/ModalTheme"
             android:excludeFromRecents="true"
             android:noHistory="true"
@@ -39,7 +40,7 @@
             android:exported="true"
             android:taskAffinity="dev.nisarg.paisa.main"
             android:theme="@style/HomeTheme"
-            android:label="Paisa" />
+            android:label="Parchi" />
 
         <activity
             android:name=".ui.SplitActivity"
@@ -59,7 +60,7 @@
             android:name=".ui.DebugActivity"
             android:exported="true"
             android:taskAffinity="dev.nisarg.paisa.main"
-            android:label="Paisa diagnostics" />
+            android:label="Parchi diagnostics" />
 
         <!-- The ear. Granted via Settings > Notification access, not a runtime prompt. -->
         <service

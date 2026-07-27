@@ -69,7 +69,7 @@ class HomeActivity : Activity() {
     private fun draw() {
         val roll = receiptColumn()
 
-        roll.addView(line("P A I S A", 15f, Receipt.ink, bold = true,
+        roll.addView(line("P A R C H I", 15f, Receipt.ink, bold = true,
             centre = true, tracking = 0.34f, topPad = 14))
         roll.addView(line(
             if (tab == Tab.CYCLE) "SPEND RECEIPT" else "CUSTOM RANGE",

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Warm near-black: the same paper tone the app is printed on, so the icon
+         and the first screen are obviously the same object. -->
+    <color name="parchi_icon_bg">#13120F</color>
+</resources>

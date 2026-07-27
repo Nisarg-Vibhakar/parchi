@@ -3,6 +3,7 @@
 build/
 local.properties
 *.apk
+parchi.apk
 
 # Real financial data — never commit.
 # exports/ holds captured bank messages verbatim (account numbers, balances,

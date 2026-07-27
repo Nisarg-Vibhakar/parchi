@@ -1,4 +1,6 @@
-# Paisa
+# Parchi
+
+*parchi* — the little paper slip a shopkeeper hands you.
 
 Expense capture for Android that asks you nothing until it has to.
 
@@ -58,7 +60,7 @@ source env.sh
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Then open **Paisa** and work through the three buttons at the top, in order:
+Then open **Parchi** and work through the three buttons at the top, in order:
 
 1. **Grant notification access** — this is a Settings screen, not a normal
    permission prompt. Find Paisa in the list and enable it.
