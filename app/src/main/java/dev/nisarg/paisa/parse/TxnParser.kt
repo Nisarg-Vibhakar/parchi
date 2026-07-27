@@ -116,6 +116,33 @@ object TxnParser {
         Regex("[\\u0A80-\\u0AFF]"),
     )
 
+    /**
+     * Marketing that cannot be mistaken for a receipt, rejected regardless of
+     * direction.
+     *
+     * The weaker PROMO_PATTERNS above only apply when no transaction verb was
+     * found, so a genuine receipt carrying a link survives. That gate leaks when
+     * the advert itself uses transaction words: Paytm's "Rs.2,000 Cashback +
+     * Gold ... enter to win big ... Code: CCBP2000. T&C Apply" matched
+     * "cashback", resolved to CREDIT, and booked Rs.2,000 of income from an
+     * advertisement.
+     *
+     * These phrases never appear in a real payment confirmation. A bank tells you
+     * what moved; it does not invite you to enter anything or apply a code.
+     */
+    private val DEFINITELY_MARKETING = listOf(
+        Regex("\\bT&?Cs?\\s+Apply\\b", RegexOption.IGNORE_CASE),
+        Regex("\\benter to win\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bwin big\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bCode:\\s*[A-Z0-9]{4,}", RegexOption.IGNORE_CASE),
+        Regex("\\bavailable for you\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bloan offer\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bapply now\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bpay now to avoid\\b", RegexOption.IGNORE_CASE),
+        Regex("\\blowest interest\\b", RegexOption.IGNORE_CASE),
+        Regex("\\bpre[- ]?approved\\b", RegexOption.IGNORE_CASE),
+    )
+
     // ---- rule 1: amount ---------------------------------------------------
 
     private val AMOUNT_PATTERNS: List<Pair<Regex, String>> = listOf(
@@ -257,6 +284,7 @@ object TxnParser {
         val rules = mutableListOf<String>()
 
         val reject = REJECT_PATTERNS.firstOrNull { it.first.containsMatchIn(text) }?.second
+            ?: if (DEFINITELY_MARKETING.any { it.containsMatchIn(text) }) "promotional" else null
 
         var amount: Long? = null
         for ((re, rule) in AMOUNT_PATTERNS) {

@@ -111,4 +111,39 @@ class PromoAndEdgeCaseTest {
             "On 26/07/26\nRef 900000000010\nNot You?\nCall 18002586161/SMS BLOCK UPI to 7308080808")
         assertEquals("Shree Rasoi Kathiyawadi", r.merchantRaw)
     }
+
+    // ---- adverts that use transaction words --------------------------------
+
+    private fun notif(title: String, body: String, pkg: String) =
+        TxnParser.parse(TxnParser.Input("notification", packageName = pkg, title = title, body = body))
+
+    /**
+     * Real miss, caught on the very first notifications ever captured. The weak
+     * promo gate only fires when no transaction verb was found, so an advert
+     * using "Cashback" resolved to CREDIT and booked Rs.2,000 of income.
+     */
+    @Test fun `an advert using cashback is not income`() {
+        val r = notif(
+            "\u20b92,000 Cashback + Gold",
+            "Pay your Credit Card bill on Paytm & enter to win big. Zero stress, " +
+                "real rewards. Code: CCBP2000. T&C Apply",
+            "net.one97.paytm")
+        assertEquals("promotional", r.rejectedReason)
+    }
+
+    @Test fun `a loan offer is not a payment`() {
+        val r = notif(
+            "\u20b930,000 to \u20b940,00,000 available for you",
+            "Your loan offer has a low interest rate & faster approval process",
+            "com.google.android.apps.nbu.paisa.user")
+        assertEquals("promotional", r.rejectedReason)
+    }
+
+    /** A genuine receipt must still survive, even carrying a link and a footer. */
+    @Test fun `a real receipt with a link is untouched by the marketing filter`() {
+        val r = sms("Payment of Rs. 73.76 has been received on 22-Jul-26\nJio Number : 9000000009\n" +
+            "Setup JioAutoPay - http://tiny.jio.com/dregjiopay")
+        assertNull(r.rejectedReason)
+        assertEquals(Direction.DEBIT, r.direction)
+    }
 }
