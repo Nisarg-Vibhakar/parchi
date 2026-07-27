@@ -33,6 +33,7 @@ class DebugReceiver : BroadcastReceiver() {
         const val DELETE_RAW = "dev.nisarg.paisa.DELETE_RAW"
         const val SIMULATE_SMS = "dev.nisarg.paisa.SIMULATE_SMS"
         const val SETTLE_SMALL = "dev.nisarg.paisa.SETTLE_SMALL"
+        const val DAILY_NOW = "dev.nisarg.paisa.DAILY_NOW"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -81,6 +82,7 @@ class DebugReceiver : BroadcastReceiver() {
                         val done = db.settleSmallBefore(maxMinor, before)
                         Log.i(TAG, "SETTLE_SMALL expected=$n value=$v settled=$done")
                     }
+                    DAILY_NOW -> dev.nisarg.paisa.work.DailySummary.post(app)
                     DELETE_RAW -> {
                         val id = intent.getLongExtra("id", -1L)
                         Log.i(TAG, "DELETE_RAW id=$id removed=${PaisaDb.get(app).deleteRawEvent(id)}")

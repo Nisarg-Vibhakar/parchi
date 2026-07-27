@@ -50,5 +50,8 @@ class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         PaisaDb.get(context).beat("boot:${intent.action}")
         Heartbeat.schedule(context)
+        // Alarms do not survive a reboot; without this the daily summary would
+        // silently stop the first time the phone restarts.
+        DailySummary.schedule(context)
     }
 }
