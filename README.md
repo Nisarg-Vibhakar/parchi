@@ -19,13 +19,19 @@ See [the spec](docs/superpowers/specs/2026-07-27-expense-capture-phase1-design.m
 Settings → Gestures → back-tap → **Open app** → Paisa.
 
 The launcher activity *is* the modal. It is translucent, shows over the lock
-screen, and decides what to show from context:
+screen, and decides what to show from what is waiting — never from what the
+phone is doing, because the gesture and the app icon fire the identical intent
+and cannot be told apart:
 
 | Situation | What you get |
 |---|---|
 | Uncategorised spend in the last 30 min | Amount, payee, six category tiles. One tap. |
-| Nothing arrived yet | Keypad — type the amount, pick a category |
-| Nothing pending at all | Today's total and this week's, then back out |
+| Nothing pending | Today's total and this week's, then back out |
+
+Nothing arrived yet? **+ ADD A PAYMENT** on that second slip opens the keypad —
+type the amount, pick a category. It is a button rather than the landing screen
+on purpose: a live number field in front of the figure you opened the slip to
+read invites an entry for a payment the bank SMS is about to bring in anyway.
 
 Manual entry exists because of a measured failure, not a hunch: **Google Pay
 posts no notification for payments you make yourself**, and the bank SMS that

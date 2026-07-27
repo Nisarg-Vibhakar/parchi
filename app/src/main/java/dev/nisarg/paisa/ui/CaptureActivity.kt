@@ -30,8 +30,10 @@ import java.util.Calendar
  * dashboard with a dialog bolted on.
  *
  *   CONFIRM — an uncategorised spend arrived recently: one tap to file it
- *   MANUAL  — nothing arrived: type the amount yourself
- *   SUMMARY — nothing pending: today's figure, then out
+ *   SUMMARY — nothing pending: today's figure, and the keypad one tap away
+ *   MANUAL  — the keypad, reached from the summary. Never landed on directly:
+ *             a live number field in front of the figure you opened the slip to
+ *             read invites an entry the bank SMS is about to bring in anyway.
  *
  * MANUAL exists because of a measured failure: Google Pay posts no notification
  * for payments you make yourself, and the bank SMS that does carry them runs
@@ -70,41 +72,22 @@ class CaptureActivity : Activity() {
     private fun money(minor: Long) = Money.format(minor).removePrefix("₹")
 
     /**
-     * Both the back-tap gesture and the app icon fire the same launcher intent —
-     * Motorola's gesture list offers only "Open app" — so they cannot be told
-     * apart as intents. They are told apart by context instead:
+     * A launcher intent always produces a slip. Which one is decided by
+     * [CaptureRouting], and by nothing about the device — see the reasoning
+     * there. The receipt is reached from the slip, never instead of it.
      *
-     *   something to confirm  -> the confirm slip, whichever way you arrived
-     *   phone still locked    -> you just paid and reached for it: manual entry
-     *   phone already in use  -> you tapped the icon: the full receipt
-     *
-     * The lock state is the honest signal. You back-tap a phone you have just
-     * paid with, which is usually still locked or freshly woken; you tap an icon
-     * on a phone you are already holding and using.
+     * This is also where a filing run goes after each answer: the next pending
+     * spend if there is one, otherwise today's figure.
      */
     private fun render() {
         val window = intent?.getLongExtra("window_ms", 0L) ?: 0L
         val pending = if (window > 0) db.pendingSpend(window) else db.pendingSpend()
-        if (pending != null) { show(confirmSlip(pending)); return }
-
-        // An explicit window means we were opened deliberately for filing, not by
-        // the gesture, so never redirect.
-        if (window > 0L) { show(summarySlip()); return }
-
-        val km = getSystemService(android.app.KeyguardManager::class.java)
-        val cameFromGesture = km?.isKeyguardLocked == true || !isInteractiveRecently()
-        if (cameFromGesture) { show(manualSlip()); return }
-
-        startActivity(
-            Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        show(
+            when (CaptureRouting.decide(hasPending = pending != null)) {
+                CaptureRouting.Slip.CONFIRM -> confirmSlip(pending!!)
+                CaptureRouting.Slip.SUMMARY -> summarySlip()
+            }
         )
-        finish()
-    }
-
-    /** True when the screen has been on long enough that the user was already using it. */
-    private fun isInteractiveRecently(): Boolean {
-        val pm = getSystemService(android.os.PowerManager::class.java)
-        return pm?.isInteractive == true
     }
 
     private fun show(body: LinearLayout) {
