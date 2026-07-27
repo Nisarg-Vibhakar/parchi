@@ -83,6 +83,17 @@ class HomeActivity : Activity() {
 
         roll.addView(rule("═"))
         roll.addView(tabSwitch())
+        roll.addView(TextView(this).apply {
+            text = "REVIEW DUPLICATE PAYEES"
+            textSize = 11f
+            typeface = Receipt.mono
+            gravity = Gravity.CENTER
+            letterSpacing = 0.14f
+            setTextColor(Receipt.inkFaint)
+            minHeight = px(Design.TOUCH_MIN)
+            setPadding(0, px(14), 0, px(2))
+            setOnClickListener { startActivity(Intent(this@HomeActivity, MergeActivity::class.java)) }
+        })
         roll.addView(line("* * *", 12f, Receipt.inkFaint, centre = true, topPad = 12))
         roll.addView(TextView(this).apply {
             text = "DIAGNOSTICS"

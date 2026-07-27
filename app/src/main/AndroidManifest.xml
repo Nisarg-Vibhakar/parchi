@@ -45,6 +45,13 @@
             android:label="Parchi" />
 
         <activity
+            android:name=".ui.MergeActivity"
+            android:exported="true"
+            android:taskAffinity="dev.nisarg.paisa.main"
+            android:theme="@style/HomeTheme"
+            android:label="Merge payees" />
+
+        <activity
             android:name=".ui.SplitActivity"
             android:exported="true"
             android:taskAffinity="dev.nisarg.paisa.main"

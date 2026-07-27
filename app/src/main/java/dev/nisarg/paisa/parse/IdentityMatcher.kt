@@ -94,6 +94,17 @@ object IdentityMatcher {
             }
         }
 
+        // The same name written two ways. Found in real data as "Umesh Rambhai
+        // Patat" alongside "UMESH RAMBHAI PATAT" — two payees, one person, purely
+        // from casing. The safest merge of all, because nothing is being inferred.
+        val byKey = payees.filter { nameWords(it) != null }.groupBy { nameKey(it) }
+        for ((_, group) in byKey) {
+            if (group.size < 2) continue
+            for (i in group.indices) for (j in i + 1 until group.size) {
+                out += Candidate(group[i], group[j], "the same name, written differently", 1.0)
+            }
+        }
+
         return out.distinctBy { setOf(it.a, it.b) }.sortedByDescending { it.strength }
     }
 }
