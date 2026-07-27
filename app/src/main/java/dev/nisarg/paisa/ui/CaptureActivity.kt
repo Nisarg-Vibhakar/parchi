@@ -69,10 +69,42 @@ class CaptureActivity : Activity() {
 
     private fun money(minor: Long) = Money.format(minor).removePrefix("₹")
 
+    /**
+     * Both the back-tap gesture and the app icon fire the same launcher intent —
+     * Motorola's gesture list offers only "Open app" — so they cannot be told
+     * apart as intents. They are told apart by context instead:
+     *
+     *   something to confirm  -> the confirm slip, whichever way you arrived
+     *   phone still locked    -> you just paid and reached for it: manual entry
+     *   phone already in use  -> you tapped the icon: the full receipt
+     *
+     * The lock state is the honest signal. You back-tap a phone you have just
+     * paid with, which is usually still locked or freshly woken; you tap an icon
+     * on a phone you are already holding and using.
+     */
     private fun render() {
         val window = intent?.getLongExtra("window_ms", 0L) ?: 0L
         val pending = if (window > 0) db.pendingSpend(window) else db.pendingSpend()
-        show(if (pending != null) confirmSlip(pending) else summarySlip())
+        if (pending != null) { show(confirmSlip(pending)); return }
+
+        // An explicit window means we were opened deliberately for filing, not by
+        // the gesture, so never redirect.
+        if (window > 0L) { show(summarySlip()); return }
+
+        val km = getSystemService(android.app.KeyguardManager::class.java)
+        val cameFromGesture = km?.isKeyguardLocked == true || !isInteractiveRecently()
+        if (cameFromGesture) { show(manualSlip()); return }
+
+        startActivity(
+            Intent(this, HomeActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        finish()
+    }
+
+    /** True when the screen has been on long enough that the user was already using it. */
+    private fun isInteractiveRecently(): Boolean {
+        val pm = getSystemService(android.os.PowerManager::class.java)
+        return pm?.isInteractive == true
     }
 
     private fun show(body: LinearLayout) {
