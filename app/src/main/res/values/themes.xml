@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Translucent so the modal floats over whatever is on screen (or the lock
+         screen) instead of reading as an app launch. -->
+    <style name="ModalTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.55</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Dialog</item>
+    </style>
+
+    <!-- No ActionBar: the default one was covering the hero total, and a system
+         title bar duplicates the heading this screen draws itself. -->
+    <style name="HomeTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:statusBarColor">#121211</item>
+        <item name="android:navigationBarColor">#121211</item>
+    </style>
+</resources>
