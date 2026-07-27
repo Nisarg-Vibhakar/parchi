@@ -31,7 +31,14 @@ import java.util.Calendar
 object DailySummary {
 
     private const val TAG = "PaisaDaily"
-    const val CHANNEL = "daily_summary"
+    /**
+     * A NEW id on purpose. The first version of this channel was created at
+     * IMPORTANCE_LOW, and Android does not allow an app to raise a channel's
+     * importance afterwards — only the user can, in settings. A silent channel
+     * cannot ring, so the call would have been a notification in costume.
+     * Changing the id creates it fresh at the importance it needs.
+     */
+    const val CHANNEL = "incoming_call_v2"
     private const val NOTIFICATION_ID = 4201
     const val HOUR = 21
 
@@ -95,9 +102,9 @@ object DailySummary {
         nm.createNotificationChannel(
             // HIGH, because a call that does not ring is just a notification
             // wearing a costume.
-            NotificationChannel(CHANNEL, "Daily summary", NotificationManager.IMPORTANCE_HIGH)
+            NotificationChannel(CHANNEL, "Incoming call", NotificationManager.IMPORTANCE_HIGH)
                 .apply {
-                    description = "What today cost, once a day"
+                    description = "Your daily spending, delivered as a call"
                     setSound(
                         android.media.RingtoneManager
                             .getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
