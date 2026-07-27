@@ -66,6 +66,10 @@ object Categoriser {
             "supermarket", "provision", "sales", "generalstore") to Category.GROCERIES,
 
         listOf("rapido", "uber", "ola", "gujaratstateroadtransport", "gsrtc",
+            // Banks truncate: "GUJARAT STATE ROAD TRANSP" arrives cut short, so
+            // the full name never matched and four alphabetic words then tripped
+            // the person heuristic. Rs.4,120 of bus fares were filed as a person.
+            "gujaratstateroad", "roadtransport",
             "brts", "citybus", "metro", "irctc", "railway", "redbus",
             "namma", "bmtc", "auto") to Category.TRANSPORT,
 
@@ -215,7 +219,13 @@ object Categoriser {
 
     private fun matches(keyword: String, squashed: String, words: List<String>): Boolean =
         words.contains(keyword) ||
-            (keyword.length >= SAFE_SUBSTRING_LENGTH && squashed.contains(keyword))
+            (keyword.length >= SAFE_SUBSTRING_LENGTH && squashed.contains(keyword)) ||
+            // Short brand names — uber, ola, jio, cred — cannot match by
+            // substring without colliding, but they are safe as a PREFIX:
+            // "uberindiasystem187204" starts with "uber", while "bankofbaroda"
+            // does not start with "bar" and "sportomic" does not start with
+            // "rto". Without this, a four-letter brand was unmatchable.
+            squashed.startsWith(keyword)
 
     private fun normalise(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 

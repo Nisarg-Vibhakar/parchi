@@ -188,4 +188,32 @@ class CategoriserTest {
         assertEquals(Category.PEOPLE, cat("Sunita Devi"))
 
     @Test fun `help is real spending`() = assertEquals(true, Category.HELP.isSpending)
+
+    // ---- truncation and short brands ---------------------------------------
+
+    /**
+     * Real miss: banks truncate long names, so "GUJARAT STATE ROAD TRANSP" never
+     * matched the full keyword — and four alphabetic words then made it a
+     * PERSON. Rs.4,120 of bus fares were filed against a human being.
+     */
+    @Test fun `a truncated transport authority is still transport`() {
+        assertEquals(Category.TRANSPORT, cat("GUJARAT STATE ROAD TRANSP"))
+        assertEquals(Category.TRANSPORT, cat("GUJARAT STATE ROAD TRANSPORT CORPORATION"))
+    }
+
+    /**
+     * Short brands cannot match by substring without colliding, but they are safe
+     * as a prefix. Without this a four-letter brand was unmatchable after the
+     * collision fix.
+     */
+    @Test fun `short brand names match as a prefix`() {
+        assertEquals(Category.TRANSPORT, cat("uberindiasystem187204.rzp@rxai"))
+        assertEquals(Category.TRANSPORT, cat("UBER INDIA SYSTEMS PRIVAT"))
+    }
+
+    /** The prefix rule must not undo the collision fix. */
+    @Test fun `a prefix match cannot resurrect the old collisions`() {
+        assertNull(cat("BANK OF BARODA"))
+        assertEquals(Category.SPORTS, cat("Sportomic"))
+    }
 }
