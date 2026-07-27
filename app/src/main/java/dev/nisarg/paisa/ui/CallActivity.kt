@@ -61,29 +61,29 @@ class CallActivity : Activity() {
      */
     private fun startRinging(who: Caller.Persona) {
         val started = System.currentTimeMillis()
-        val vibrator = getSystemService(android.os.Vibrator::class.java)
+        Ringer.start(this, who.mood)
         ringer = object : android.os.CountDownTimer(10 * 60_000L, 60L) {
-            var lastBuzz = 0L
             override fun onTick(remaining: Long) {
                 val elapsed = System.currentTimeMillis() - started
                 face?.pulse = (elapsed % 1400L) / 1400f
                 timerLabel?.text = Caller.ringingLabel(elapsed)
-                // A double buzz every three seconds, like a real ringtone pattern.
-                if (elapsed - lastBuzz > 3000) {
-                    lastBuzz = elapsed
-                    runCatching {
-                        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(
-                            longArrayOf(0, 90, 120, 90), -1))
-                    }
-                }
             }
-            override fun onFinish() {}
+            // Nobody rings forever. Ten minutes and it gives up, and the call
+            // stays in MISSED CALLS where it can be answered later.
+            override fun onFinish() { Ringer.stop(); finish() }
         }.start()
     }
 
     override fun onDestroy() {
         super.onDestroy()
         ringer?.cancel()
+        Ringer.stop()
+    }
+
+    /** Leaving the screen must silence it — a ringtone outliving its call is a bug. */
+    override fun onPause() {
+        super.onPause()
+        Ringer.stop()
     }
 
     /** The caller is chosen by what today actually cost. */
@@ -169,6 +169,7 @@ class CallActivity : Activity() {
         roll.addView(action(Caller.answerLabel(who.mood), Receipt.stampGreen) {
             // Answering should cost something: they get the last word first.
             ringer?.cancel()
+            Ringer.stop()
             timerLabel?.text = "connected"
             android.widget.Toast.makeText(this, Caller.greeting(who.mood),
                 android.widget.Toast.LENGTH_LONG).show()
@@ -182,11 +183,13 @@ class CallActivity : Activity() {
         // Snoozing is not dismissal: it survives in the app so a busy evening
         // cannot quietly erase the day.
         roll.addView(action("SNOOZE  —  CALL BACK LATER", Receipt.ink) {
+            Ringer.stop()
             db.snooze(System.currentTimeMillis() + 2 * 60 * 60 * 1000L)
             DailySummary.scheduleSnoozeCallback(this, 2 * 60 * 60 * 1000L)
             finish()
         })
         roll.addView(quiet(Caller.declineLabel(who.mood)) {
+            Ringer.stop()
             db.snooze(0L)   // still recorded, just not called back
             finish()
         })

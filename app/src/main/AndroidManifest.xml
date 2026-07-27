@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android 13+ requires this before an app may post anything. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Was missing, so every vibrate() threw SecurityException and the buzz
+         silently never happened. -->
+    <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Lets the summary take over the screen like a call instead of sitting in
          the shade where a money notification is swiped away unread. -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
