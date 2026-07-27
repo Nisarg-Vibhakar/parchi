@@ -6,13 +6,13 @@ import kotlin.math.exp
 import kotlin.math.sin
 
 /**
- * The ringtones, generated rather than downloaded.
+ * The fallback ringtones, generated rather than played from a file.
  *
- * Every genuinely funny ringtone on the internet is someone's copyright, and
- * shipping one into an app is a licensing problem wearing a joke's clothes.
- * Synthesising them costs a few hundred lines of arithmetic and buys something
- * better: each mood gets its own melody, tuned to the feeling, with nothing to
- * license and no audio files in the repository.
+ * The real recordings in res/raw are what normally rings; these exist for when
+ * one will not open — a missing resource, a codec the device dislikes. Synthesis
+ * needs no files and cannot fail on a decoder, so it is the one layer that is
+ * always available, and it still gives each mood its own melody rather than
+ * dropping everyone onto the same stock beep.
  *
  * The motifs are deliberately cheap and a bit rubbish — square-ish tones with a
  * fast decay, like a mid-2000s feature phone. A polished orchestral sting would

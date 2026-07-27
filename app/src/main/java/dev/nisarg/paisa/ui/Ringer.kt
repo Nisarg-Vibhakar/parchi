@@ -19,8 +19,9 @@ import dev.nisarg.paisa.work.Caller
  * day taps twice and stops, a blown cycle produces a long, unhurried, faintly
  * threatening pulse.
  *
- * Uses only system sounds. Shipping audio assets for a joke would be absurd, and
- * the stock alarm tone is already the most stressful noise a phone can make.
+ * Three sources, in order: the mood's own recording, then a synthesised motif,
+ * then a stock system tone. Each step down is a real fallback for the one above
+ * failing, not a preference — a call screen that rings silently is just a dialog.
  */
 object Ringer {
 
@@ -97,13 +98,8 @@ object Ringer {
                 val uri = RingtoneManager.getDefaultUri(toneTypeFor(mood))
                     ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 player = MediaPlayer().apply {
+                    setAudioAttributes(ringtoneAttributes())   // before prepare, always
                     setDataSource(context, uri)
-                    setAudioAttributes(
-                        AudioAttributes.Builder()
-                            .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                            .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                            .build()
-                    )
                     isLooping = true
                     prepare()
                     start()
@@ -125,19 +121,35 @@ object Ringer {
         }
     }
 
-    /** Plays the mood's recording on a loop. */
+    private fun ringtoneAttributes() = AudioAttributes.Builder()
+        .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+        .build()
+
+    /**
+     * Plays the mood's recording on a loop.
+     *
+     * Built by hand rather than with MediaPlayer.create(), which prepares the
+     * player internally — so attributes set afterwards are silently ignored and
+     * the stream stays USAGE_UNKNOWN. Android's audio hardening then mutes it as
+     * background media playback, and the ringtone plays into nothing. The
+     * attributes MUST be set before prepare().
+     */
     private fun playClip(context: Context, mood: Caller.Mood): Boolean {
-        val mp = MediaPlayer.create(context, clipFor(mood)) ?: return false
-        mp.setAudioAttributes(
-            AudioAttributes.Builder()
-                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
-                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                .build()
-        )
-        mp.isLooping = true
-        mp.start()
-        player = mp
-        return true
+        val afd = context.resources.openRawResourceFd(clipFor(mood)) ?: return false
+        return try {
+            val mp = MediaPlayer()
+            mp.setAudioAttributes(ringtoneAttributes())
+            mp.setDataSource(afd.fileDescriptor, afd.startOffset, afd.length)
+            mp.isLooping = true
+            mp.prepare()
+            mp.setVolume(1f, 1f)
+            mp.start()
+            player = mp
+            true
+        } finally {
+            runCatching { afd.close() }
+        }
     }
 
     /**

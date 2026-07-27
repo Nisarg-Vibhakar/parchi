@@ -43,6 +43,11 @@ class CallActivity : Activity() {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         }
+        // A call screen that lets the display sleep mid-ring is not a call screen.
+        window.addFlags(
+            android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or
+                android.view.WindowManager.LayoutParams.FLAG_DISMISS_KEYGUARD
+        )
         ring()
     }
 
