@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Card transactions frequently arrive ONLY as bank SMS, never as a
+         notification. READ_SMS also lets us backfill the existing inbox on
+         first run, which is what makes the parser testable on day one. -->
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-permission android:name="android.permission.READ_SMS" />
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+
+    <application
+        android:label="Paisa"
+        android:icon="@android:drawable/ic_menu_save"
+        android:allowBackup="false"
+        android:supportsRtl="true">
+
+        <!-- The back-tap target. Motorola's gesture list only offers "Open app",
+             so the launcher activity IS the modal, and it decides what to show. -->
+        <activity
+            android:name=".ui.CaptureActivity"
+            android:exported="true"
+            android:label="Paisa"
+            android:theme="@style/ModalTheme"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".ui.HomeActivity"
+            android:exported="true"
+            android:theme="@style/HomeTheme"
+            android:label="Paisa" />
+
+        <activity
+            android:name=".ui.SplitActivity"
+            android:exported="true"
+            android:theme="@style/HomeTheme"
+            android:label="Split" />
+
+        <activity
+            android:name=".ui.FileActivity"
+            android:exported="true"
+            android:theme="@style/HomeTheme"
+            android:label="Filing" />
+
+        <activity
+            android:name=".ui.DebugActivity"
+            android:exported="true"
+            android:label="Paisa diagnostics" />
+
+        <!-- The ear. Granted via Settings > Notification access, not a runtime prompt. -->
+        <service
+            android:name=".capture.PaymentNotificationListener"
+            android:exported="true"
+            android:label="Paisa capture"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".capture.PaymentSmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".work.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".work.HeartbeatReceiver"
+            android:exported="false" />
+
+        <!-- Phase 1 development tooling: drives backfill/reparse/export over adb
+             so the capture loop can be iterated without tapping the phone. -->
+        <receiver
+            android:name=".ui.DebugReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="dev.nisarg.paisa.BACKFILL" />
+                <action android:name="dev.nisarg.paisa.REPARSE" />
+                <action android:name="dev.nisarg.paisa.EXPORT" />
+                <action android:name="dev.nisarg.paisa.STATUS" />
+                <action android:name="dev.nisarg.paisa.SELF_ADD" />
+                <action android:name="dev.nisarg.paisa.SELF_DEL" />
+                <action android:name="dev.nisarg.paisa.SELF_LIST" />
+                <action android:name="dev.nisarg.paisa.DELETE_RAW" />
+                <action android:name="dev.nisarg.paisa.SIMULATE_SMS" />
+                <action android:name="dev.nisarg.paisa.SETTLE_SMALL" />
+            </intent-filter>
+        </receiver>
+
+    </application>
+</manifest>
