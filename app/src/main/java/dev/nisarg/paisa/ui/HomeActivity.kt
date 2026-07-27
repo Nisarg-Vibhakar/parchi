@@ -214,6 +214,21 @@ class HomeActivity : Activity() {
             }, tint))
         })
 
+        // Does the app actually know what happened? Reported before any of the
+        // spending detail, because a total is only worth reading if it is complete.
+        for (acct in db.reconcilableAccounts()) {
+            val res = dev.nisarg.paisa.parse.Reconciler.reconcile(
+                db.readingsFor(acct, s.startAt, now))
+            if (res.gaps.isEmpty()) continue
+            roll.addView(rule("─"))
+            roll.addView(leaderRow("UNSEEN ON ...$acct",
+                money(res.unexplainedOutflowMinor), Receipt.inkSoft, Receipt.stampAmber, bold = true))
+            roll.addView(line(
+                "${res.gaps.size} gap(s) between bank balances. Cash, fees, or\n" +
+                    "payments the bank never messaged about.",
+                10f, Receipt.inkFaint))
+        }
+
         val oneOff = db.oneOffTotal(s.startAt, now)
         if (oneOff > 0) {
             roll.addView(rule("─"))

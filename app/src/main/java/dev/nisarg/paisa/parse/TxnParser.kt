@@ -62,6 +62,26 @@ object TxnParser {
         val instrument: Instrument,
         val refId: String?,
         val confidence: Double,
+        /** Last four of the account this moved through, when the bank says. */
+        val accountTail: String?,
+        /**
+         * The running balance the bank quoted, when it quotes one.
+         *
+         * This is what makes it possible to check the app against reality: between
+         * two balance readings on the same account, the delta must equal the
+         * transactions captured in between. Anything left over is money that moved
+         * without the app seeing it.
+         */
+        val balanceMinor: Long?,
+        /**
+         * The instant the bank stamped on the balance, in `yyyy:MM:dd HH:mm:ss`
+         * or `dd-MM-yyyy HH:mm:ss`, when it gives one.
+         *
+         * Reconciliation must sequence by when money moved, not when the SMS
+         * arrived. Two SIP debits seconds apart were delivered in the wrong order
+         * and produced a phantom +2,500/-2,500 pair of gaps.
+         */
+        val balanceAtMillis: Long?,
         val matchedRules: List<String>,
         /** Non-null means "this is not a completed spend" — failures, requests, OTPs. */
         val rejectedReason: String?,
@@ -265,7 +285,44 @@ object TxnParser {
             to "ref:bare_rrn",
     )
 
-    // ---- rule 5: instrument ------------------------------------------------
+    // ---- rule 5: account and balance ---------------------------------------
+
+    private val ACCOUNT_PATTERNS = listOf(
+        // "A/C XXXXXX9123", "A/c ...9123", "HDFC Bank A/C *9082", "A/c XX9082"
+        Regex("\\bA/[Cc]\\.?\\s*[X.*x]*([0-9]{4})\\b"),
+        Regex("\\bAccount\\s+[X.*x]*([0-9]{4})\\b", RegexOption.IGNORE_CASE),
+        // card messages name the card, which is its own "account" for this purpose
+        Regex("\\bCard\\s+(?:ending\\s+(?:with\\s+)?|no\\.?\\s*|x)?([0-9]{4})\\b", RegexOption.IGNORE_CASE),
+    )
+
+    /** `(2026:07:27 11:00:04)` and `(15-07-2026 08:14:43)` both occur. */
+    private val BALANCE_STAMP_PATTERNS = listOf(
+        Regex("\\((\\d{4}):(\\d{2}):(\\d{2})\\s+(\\d{2}):(\\d{2}):(\\d{2})\\)") to true,
+        Regex("\\((\\d{2})-(\\d{2})-(\\d{4})\\s+(\\d{2}):(\\d{2}):(\\d{2})\\)") to false,
+    )
+
+    private fun parseStamp(text: String): Long? {
+        for ((re, yearFirst) in BALANCE_STAMP_PATTERNS) {
+            val m = re.find(text) ?: continue
+            val g = m.groupValues
+            val (y, mo, dd) = if (yearFirst) Triple(g[1].toInt(), g[2].toInt(), g[3].toInt())
+            else Triple(g[3].toInt(), g[2].toInt(), g[1].toInt())
+            return runCatching {
+                java.util.Calendar.getInstance().apply {
+                    clear()
+                    set(y, mo - 1, dd, g[4].toInt(), g[5].toInt(), g[6].toInt())
+                }.timeInMillis
+            }.getOrNull()
+        }
+        return null
+    }
+
+    private val BALANCE_PATTERNS = listOf(
+        Regex("(?:AvlBal|Avlbl\\s*Amt|Avl\\s*bal(?:ance)?|Total\\s*Bal|Available\\s*Bal(?:ance)?)" +
+            "[:\\s]*(?:Rs\\.?|INR|₹)?\\s*([0-9][0-9,]*(?:\\.[0-9]{1,2})?)", RegexOption.IGNORE_CASE),
+    )
+
+    // ---- rule 6: instrument ------------------------------------------------
 
     private val UPI_PACKAGES = setOf(
         "com.google.android.apps.nbu.paisa.user",  // Google Pay
@@ -353,6 +410,22 @@ object TxnParser {
             break
         }
 
+        var accountTail: String? = null
+        for (re in ACCOUNT_PATTERNS) {
+            val m = re.find(text) ?: continue
+            accountTail = m.groupValues[1]
+            rules += "account:tail"
+            break
+        }
+
+        var balance: Long? = null
+        for (re in BALANCE_PATTERNS) {
+            val m = re.find(text) ?: continue
+            balance = Money.toMinor(m.groupValues[1]) ?: continue
+            rules += "balance:quoted"
+            break
+        }
+
         val instrument = when {
             Regex("\\b(credit card|debit card|card ending|card no|XX\\d{4})\\b", RegexOption.IGNORE_CASE)
                 .containsMatchIn(text) -> Instrument.CARD
@@ -397,6 +470,9 @@ object TxnParser {
             instrument = instrument,
             refId = refId,
             confidence = confidence,
+            accountTail = accountTail,
+            balanceMinor = balance,
+            balanceAtMillis = if (balance != null) parseStamp(text) else null,
             matchedRules = rules,
             rejectedReason = finalReject,
         )
