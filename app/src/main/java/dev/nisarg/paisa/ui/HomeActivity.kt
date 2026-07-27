@@ -83,6 +83,35 @@ class HomeActivity : Activity() {
 
         roll.addView(rule("═"))
         roll.addView(tabSwitch())
+        // Snoozing is not dismissal: a call you could not take stays here until
+        // it is answered, so a busy evening cannot quietly erase the day.
+        val missed = db.missedCalls()
+        if (missed.isNotEmpty()) {
+            roll.addView(rule("─"))
+            roll.addView(line("MISSED CALLS", 11.5f, Receipt.stampAmber, tracking = 0.14f))
+            for (c in missed.take(6)) {
+                roll.addView(leaderRow(
+                    android.text.format.DateFormat.format("dd MMM, h:mm a", c.calledAt)
+                        .toString().uppercase(),
+                    money(c.spentMinor), Receipt.inkSoft, Receipt.ink))
+                if (c.unfiled > 0) {
+                    roll.addView(line("   ${c.unfiled} unfiled that day", 10f, Receipt.inkFaint))
+                }
+            }
+            roll.addView(TextView(this).apply {
+                text = ">> ANSWER THEM NOW"
+                textSize = 12f
+                typeface = Receipt.monoBold
+                gravity = Gravity.CENTER
+                setTextColor(Receipt.stampAmber)
+                minHeight = px(Design.TOUCH_MIN)
+                setPadding(0, px(10), 0, px(4))
+                setOnClickListener {
+                    startActivity(Intent(this@HomeActivity, CallActivity::class.java))
+                }
+            })
+        }
+
         roll.addView(TextView(this).apply {
             text = "REVIEW DUPLICATE PAYEES"
             textSize = 11f

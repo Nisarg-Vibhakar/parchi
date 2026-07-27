@@ -8,6 +8,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
 import dev.nisarg.paisa.data.PaisaDb
 import dev.nisarg.paisa.parse.Cycle
@@ -53,6 +54,25 @@ object DailySummary {
         Log.i(TAG, "daily summary scheduled for ${next.time}")
     }
 
+    /** Declining still records the call; it just does not ring again. */
+    private fun declineIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context, 4, Intent(context, SnoozeReceiver::class.java).setAction("decline"),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    /** Rings again after the snooze, so a busy moment does not lose the day. */
+    fun scheduleSnoozeCallback(context: Context, delayMs: Long) {
+        val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+        am.set(
+            AlarmManager.RTC, System.currentTimeMillis() + delayMs,
+            PendingIntent.getBroadcast(
+                context, 5, Intent(context, DailySummaryReceiver::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+        )
+        Log.i(TAG, "callback in ${delayMs / 60000} minutes")
+    }
+
     fun post(context: Context) {
         val db = PaisaDb.get(context)
         val startOfDay = Calendar.getInstance().apply {
@@ -73,8 +93,21 @@ object DailySummary {
 
         val nm = context.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Daily summary", NotificationManager.IMPORTANCE_LOW)
-                .apply { description = "What today cost, once a day" }
+            // HIGH, because a call that does not ring is just a notification
+            // wearing a costume.
+            NotificationChannel(CHANNEL, "Daily summary", NotificationManager.IMPORTANCE_HIGH)
+                .apply {
+                    description = "What today cost, once a day"
+                    setSound(
+                        android.media.RingtoneManager
+                            .getDefaultUri(android.media.RingtoneManager.TYPE_RINGTONE),
+                        android.media.AudioAttributes.Builder()
+                            .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                            .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                            .build()
+                    )
+                    enableVibration(true)
+                }
         )
 
         val title = if (count == 0) "Nothing spent today"
@@ -98,6 +131,16 @@ object DailySummary {
             }
         }
 
+        db.logCall(spent, unfiled)
+
+        val who = Caller.forDay(System.currentTimeMillis() / 86_400_000L)
+        val fullScreen = PendingIntent.getActivity(
+            context, 3,
+            Intent(context, dev.nisarg.paisa.ui.CallActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val open = PendingIntent.getActivity(
             context, 2,
             Intent(context, CaptureActivity::class.java)
@@ -106,7 +149,10 @@ object DailySummary {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        nm.notify(NOTIFICATION_ID, Notification.Builder(context, CHANNEL)
+        // A notification about money is the most swipeable object on a phone.
+        // CallStyle is the least. Same information, delivered by something people
+        // are conditioned not to dismiss without looking.
+        val builder = Notification.Builder(context, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_menu_agenda)
             .setContentTitle(title)
             .setContentText(body.lineSequence().firstOrNull() ?: "")
@@ -114,8 +160,30 @@ object DailySummary {
             .setContentIntent(open)
             .setAutoCancel(true)
             .setOnlyAlertOnce(true)
-            .build())
-        Log.i(TAG, "posted: $title")
+            .setCategory(Notification.CATEGORY_CALL)
+            .setFullScreenIntent(fullScreen, true)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val person = android.app.Person.Builder()
+                .setName("${who.name} — ${who.line}")
+                .setImportant(true)
+                .build()
+            runCatching {
+                builder.setStyle(
+                    Notification.CallStyle.forIncomingCall(person, declineIntent(context), fullScreen)
+                )
+            }
+        }
+
+        nm.notify(NOTIFICATION_ID, builder.build())
+        Log.i(TAG, "calling as ${who.name}: $title")
+    }
+}
+
+class SnoozeReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        PaisaDb.get(context.applicationContext).snooze(0L)
+        context.getSystemService(NotificationManager::class.java).cancel(4201)
     }
 }
 

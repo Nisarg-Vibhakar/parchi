@@ -10,6 +10,9 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <!-- Android 13+ requires this before an app may post anything. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Lets the summary take over the screen like a call instead of sitting in
+         the shade where a money notification is swiped away unread. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <application
@@ -43,6 +46,16 @@
             android:taskAffinity="dev.nisarg.paisa.main"
             android:theme="@style/HomeTheme"
             android:label="Parchi" />
+
+        <activity
+            android:name=".ui.CallActivity"
+            android:exported="true"
+            android:theme="@style/HomeTheme"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:label="Incoming" />
 
         <activity
             android:name=".ui.MergeActivity"
@@ -105,6 +118,10 @@
             android:exported="false" />
 
         <receiver
+            android:name=".work.SnoozeReceiver"
+            android:exported="false" />
+
+        <receiver
             android:name=".work.HeartbeatReceiver"
             android:exported="false" />
 
@@ -126,6 +143,7 @@
                 <action android:name="dev.nisarg.paisa.SETTLE_SMALL" />
                 <action android:name="dev.nisarg.paisa.DAILY_NOW" />
                 <action android:name="dev.nisarg.paisa.SET_BUCKET" />
+                <action android:name="dev.nisarg.paisa.CALL_NOW" />
             </intent-filter>
         </receiver>
 

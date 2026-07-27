@@ -35,6 +35,7 @@ class DebugReceiver : BroadcastReceiver() {
         const val SETTLE_SMALL = "dev.nisarg.paisa.SETTLE_SMALL"
         const val DAILY_NOW = "dev.nisarg.paisa.DAILY_NOW"
         const val SET_BUCKET = "dev.nisarg.paisa.SET_BUCKET"
+        const val CALL_NOW = "dev.nisarg.paisa.CALL_NOW"
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -98,6 +99,7 @@ class DebugReceiver : BroadcastReceiver() {
                             Log.i(TAG, "SET_BUCKET $label = $rupees over $period cycle(s)")
                         }
                     }
+                    CALL_NOW -> dev.nisarg.paisa.work.DailySummary.post(app)
                     DAILY_NOW -> dev.nisarg.paisa.work.DailySummary.post(app)
                     DELETE_RAW -> {
                         val id = intent.getLongExtra("id", -1L)
