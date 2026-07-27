@@ -35,19 +35,43 @@ class MergeActivity : Activity() {
     private var merged = 0
     private var skipped = 0
 
+    private var scanning = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val already = db.merges()
-        queue = IdentityMatcher.suggest(db.allPayees())
-            .filter { it.a !in already && it.b !in already }
         render()
+        // Comparing every payee against every other is quadratic, and this phone
+        // has over a thousand of them. Nowhere near the main thread.
+        Thread {
+            val already = db.merges()
+            val found = IdentityMatcher.suggest(db.allPayees())
+                .filter { it.a !in already && it.b !in already }
+            runOnUiThread {
+                queue = found
+                scanning = false
+                render()
+            }
+        }.start()
     }
 
     private fun money(m: Long) = Money.format(m).removePrefix("₹")
 
     private fun render() {
+        if (scanning) { setContentView(page(scanningRoll())); return }
         val c = queue.getOrNull(index)
         setContentView(page(if (c == null) doneRoll() else reviewRoll(c)))
+    }
+
+    private fun scanningRoll(): LinearLayout {
+        val roll = roll()
+        roll.addView(line("S C A N N I N G", 13f, Receipt.ink, bold = true,
+            centre = true, tracking = 0.28f, topPad = 14))
+        roll.addView(rule("═"))
+        roll.addView(line("Comparing every payee against every other.", 11.5f,
+            Receipt.inkSoft, topPad = 8))
+        roll.addView(line("A moment.", 11.5f, Receipt.inkFaint))
+        roll.addView(quiet("CANCEL") { finish() })
+        return roll
     }
 
     private fun reviewRoll(c: IdentityMatcher.Candidate): LinearLayout {
