@@ -114,6 +114,24 @@ class CaptureActivity : Activity() {
         s.addView(line("YOU PAID", 10.5f, Receipt.inkSoft, tracking = 0.18f))
         s.addView(line(money(p.amountMinor), 38f, Receipt.ink, bold = true, tracking = -0.02f))
         s.addView(line(db.displayName(p.merchant).uppercase(), 13f, Receipt.inkSoft, topPad = 2))
+
+        // Ask for a name only when it is both the first time and the payee is
+        // unreadable. Prompting for a shop that already reads fine is noise, and
+        // noise in a two-second interaction is what gets an app uninstalled.
+        val worthNaming = p.merchant != null &&
+            db.isFirstTimePayee(p.merchant) && db.looksOpaque(p.merchant)
+        if (worthNaming) {
+            s.addView(TextView(this).apply {
+                text = "+ FIRST TIME — NAME IT WHILE YOU REMEMBER"
+                textSize = 11f
+                typeface = Receipt.monoBold
+                gravity = Gravity.CENTER
+                setTextColor(Receipt.stampAmber)
+                minHeight = px(Design.TOUCH_MIN)
+                setPadding(0, px(10), 0, px(2))
+                setOnClickListener { askName(p.merchant!!) }
+            })
+        }
         s.addView(rule())
         s.addView(line("WHAT WAS IT FOR?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
         s.addView(tiles(rank(p.merchant)) { c ->
@@ -124,6 +142,27 @@ class CaptureActivity : Activity() {
             db.confirmCategory(p.parsedId, null, Categoriser.Category.OTHER.name); render()
         })
         return s
+    }
+
+    private fun askName(merchant: String) {
+        val input = android.widget.EditText(this).apply {
+            hint = "e.g. Shradha Motors"
+            setSingleLine()
+            filters = arrayOf(android.text.InputFilter.LengthFilter(40))
+            setTextColor(Receipt.ink)
+            setHintTextColor(Receipt.inkFaint)
+            typeface = Receipt.mono
+            setPadding(px(16), px(16), px(16), px(16))
+        }
+        android.app.AlertDialog.Builder(this)
+            .setTitle("Who is this?")
+            .setMessage(merchant)
+            .setView(input)
+            .setPositiveButton("SAVE") { _, _ ->
+                db.setAlias(merchant, input.text.toString()); render()
+            }
+            .setNegativeButton("LATER", null)
+            .show()
     }
 
     // ---- manual ------------------------------------------------------------
