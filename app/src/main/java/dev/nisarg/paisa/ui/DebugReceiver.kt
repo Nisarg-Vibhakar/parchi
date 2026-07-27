@@ -99,7 +99,22 @@ class DebugReceiver : BroadcastReceiver() {
                             Log.i(TAG, "SET_BUCKET $label = $rupees over $period cycle(s)")
                         }
                     }
-                    CALL_NOW -> dev.nisarg.paisa.work.DailySummary.post(app)
+                    CALL_NOW -> {
+                        val mood = intent.getStringExtra("mood")
+                        if (mood.isNullOrBlank()) {
+                            dev.nisarg.paisa.work.DailySummary.post(app)
+                        } else {
+                            // Straight to the screen, bypassing the real summary,
+                            // so auditioning a mood cannot log a fake call.
+                            app.startActivity(
+                                android.content.Intent(app, dev.nisarg.paisa.ui.CallActivity::class.java)
+                                    .putExtra("mood", mood)
+                                    .putExtra("voice", intent.getLongExtra("voice", 0L))
+                                    .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK
+                                        or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP))
+                            Log.i(TAG, "auditioning mood=$mood")
+                        }
+                    }
                     DAILY_NOW -> dev.nisarg.paisa.work.DailySummary.post(app)
                     DELETE_RAW -> {
                         val id = intent.getLongExtra("id", -1L)

@@ -43,9 +43,35 @@ class CallActivity : Activity() {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
         }
+        ring()
+    }
+
+    /**
+     * singleTask re-delivers to the live instance instead of calling onCreate, so
+     * without this a second call is silently swallowed — the screen keeps showing
+     * the previous caller and never rings again.
+     */
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        ring()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // onPause stops the ringtone, so coming back has to start it again.
+        if (!ringing) ring()
+    }
+
+    private var ringing = false
+
+    private fun ring() {
+        ringer?.cancel()
+        Ringer.stop()
         val who = whoIsCalling()
         setContentView(build(who))
         startRinging(who)
+        ringing = true
     }
 
     private var ringer: android.os.CountDownTimer? = null
@@ -83,11 +109,26 @@ class CallActivity : Activity() {
     /** Leaving the screen must silence it — a ringtone outliving its call is a bug. */
     override fun onPause() {
         super.onPause()
+        ringer?.cancel()
         Ringer.stop()
+        ringing = false
     }
 
-    /** The caller is chosen by what today actually cost. */
+    /**
+     * The caller is chosen by what today actually cost.
+     *
+     * A forced mood exists only so the roster can be auditioned without spending
+     * real money to reach the interesting end of it:
+     *   adb shell am start -n dev.nisarg.paisa/.ui.CallActivity --es mood DOOM
+     */
     private fun whoIsCalling(): Caller.Persona {
+        intent?.getStringExtra("mood")?.uppercase()?.let { forced ->
+            runCatching { Caller.Mood.valueOf(forced) }.getOrNull()?.let { mood ->
+                val day = intent?.getLongExtra("voice", System.currentTimeMillis() / 86_400_000L)
+                    ?: 0L
+                return Caller.all.filter { it.mood == mood }.let { it[(day.mod(it.size.toLong())).toInt()] }
+            }
+        }
         val startOfDay = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)

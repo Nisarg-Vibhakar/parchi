@@ -44,8 +44,30 @@ object Ringer {
     }
 
     /**
-     * Which system sound suits the mood. The alarm tone for the bad end of the
-     * scale, because it is the one noise nobody has learned to sleep through.
+     * The actual recording for each mood.
+     *
+     * A real sound beats a synthesised one every time: a 1950s telephone bell, a
+     * doorbell, a toy siren and a dramatic sting say more in half a second than
+     * any arpeggio can. Sourced from Wikimedia Commons, public domain, converted
+     * to mono Ogg Vorbis and trimmed to loop — 132 KB for all five. See
+     * res/raw/CREDITS.txt.
+     */
+    fun clipFor(mood: Caller.Mood): Int = when (mood) {
+        // clapping and cheering: you spent nothing, take the applause
+        Caller.Mood.JOY -> dev.nisarg.paisa.R.raw.ring_joy
+        // a 1950s Model 500 telephone bell
+        Caller.Mood.CALM -> dev.nisarg.paisa.R.raw.ring_calm
+        // an old mechanical doorbell: someone is at the door and will not leave
+        Caller.Mood.CONCERN -> dev.nisarg.paisa.R.raw.ring_concern
+        // a toy siren, which is funnier and more annoying than a real one
+        Caller.Mood.ALARM -> dev.nisarg.paisa.R.raw.ring_alarm
+        // the three-chord dramatic sting. dun. dun. DUN.
+        Caller.Mood.DOOM -> dev.nisarg.paisa.R.raw.ring_doom
+    }
+
+    /**
+     * Kept only for the case where a clip will not open. Synthesis needs no
+     * files and cannot fail on a codec.
      */
     fun toneTypeFor(mood: Caller.Mood): Int = when (mood) {
         Caller.Mood.JOY, Caller.Mood.CALM -> RingtoneManager.TYPE_NOTIFICATION
@@ -54,6 +76,7 @@ object Ringer {
     }
 
     private var player: MediaPlayer? = null
+    private var track: android.media.AudioTrack? = null
     private var vibrator: Vibrator? = null
 
     fun start(context: Context, mood: Caller.Mood) {
@@ -66,7 +89,11 @@ object Ringer {
         val mayVibrate = ringerMode != AudioManager.RINGER_MODE_SILENT
 
         if (mayPlaySound) {
-            runCatching {
+            // The recording first, then synthesis, then a stock tone. Each step
+            // down is a real fallback, not a preference.
+            var played = runCatching { playClip(context, mood) }.getOrDefault(false)
+            if (!played) played = runCatching { playMotif(mood) }.getOrDefault(false)
+            if (!played) runCatching {
                 val uri = RingtoneManager.getDefaultUri(toneTypeFor(mood))
                     ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
                 player = MediaPlayer().apply {
@@ -98,8 +125,60 @@ object Ringer {
         }
     }
 
+    /** Plays the mood's recording on a loop. */
+    private fun playClip(context: Context, mood: Caller.Mood): Boolean {
+        val mp = MediaPlayer.create(context, clipFor(mood)) ?: return false
+        mp.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+        )
+        mp.isLooping = true
+        mp.start()
+        player = mp
+        return true
+    }
+
+    /**
+     * Plays the mood's motif on a loop, straight from generated PCM.
+     * MODE_STATIC with loop points means the whole ring sits in the audio buffer
+     * and repeats in hardware — no thread feeding it, nothing to stall.
+     */
+    private fun playMotif(mood: Caller.Mood): Boolean {
+        val pcm = Tones.render(mood)
+        if (pcm.isEmpty()) return false
+        val bytes = pcm.size * 2
+
+        val at = android.media.AudioTrack.Builder()
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            )
+            .setAudioFormat(
+                android.media.AudioFormat.Builder()
+                    .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT)
+                    .setSampleRate(Tones.SAMPLE_RATE)
+                    .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO)
+                    .build()
+            )
+            .setBufferSizeInBytes(bytes)
+            .setTransferMode(android.media.AudioTrack.MODE_STATIC)
+            .build()
+
+        at.write(pcm, 0, pcm.size)
+        at.setLoopPoints(0, pcm.size, -1)   // -1: loop until stopped
+        at.play()
+        track = at
+        return true
+    }
+
     /** Always safe to call twice — answering and destroying both land here. */
     fun stop() {
+        runCatching { track?.stop(); track?.release() }
+        track = null
         runCatching { player?.stop(); player?.release() }
         player = null
         runCatching { vibrator?.cancel() }

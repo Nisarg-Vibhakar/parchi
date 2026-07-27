@@ -1,0 +1,10 @@
+Ringtones — sourced from Wikimedia Commons, public domain / CC.
+Converted to mono 44.1kHz Ogg Vorbis, normalised and trimmed for looping.
+
+  ring_joy      "Clapping hurray (cropped).oga"
+  ring_calm     "Model 500 Telephone British ring.ogg"
+  ring_concern  "Doorbell-old-tring.ogg"
+  ring_alarm    "Toy siren alarm.ogg"
+  ring_doom     "Dramatic chords (Gravity Sound).wav"
+
+https://commons.wikimedia.org/wiki/Special:FilePath/<original filename>
