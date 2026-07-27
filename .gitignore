@@ -1,0 +1,13 @@
+# build
+.gradle/
+build/
+local.properties
+*.apk
+
+# Real financial data — never commit.
+# exports/ holds captured bank messages verbatim (account numbers, balances,
+# payees); report.html renders the same data. Both are personal and neither is
+# needed to build or understand the project.
+exports/
+report.html
+*.report.html
