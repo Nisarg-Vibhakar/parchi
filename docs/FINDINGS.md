@@ -7,6 +7,13 @@ The corpus is 3,309 real payment messages from one Indian phone — Bank of
 Baroda, HDFC, and a long tail of billers — captured verbatim and replayed
 against each parser version.
 
+> **A note on the numbers.** Every message count, percentage, accuracy figure and
+> proportion below is exactly what was measured. The rupee *amounts* have been
+> replaced with equivalent fictional ones, and merchant and payee names with
+> invented ones, because the corpus is one real person's bank inbox. The findings
+> are unchanged — a parser that was 27% right was 27% right — but you are not
+> reading anybody's actual salary, rent, or shopping.
+
 ## The parser was 27% right and looked fine
 
 The first version was written against *plausible* Indian payment phrasing. It
