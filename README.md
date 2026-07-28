@@ -128,3 +128,13 @@ tools/analyze_export.py parser accuracy analysis
 disposable — **Re-parse everything** rebuilds it from scratch with the current
 parser. That is what lets a parser fix be replayed over the entire capture
 history without collecting anything again.
+
+## Licence, and one small ask
+
+MIT. Use it, fork it, change it, ship it, sell it — you do not need my
+permission and you do not owe me anything.
+
+But I would genuinely love to know. If you run Parchi, lift the parser, or just
+get something out of [the findings](docs/FINDINGS.md), open an issue and say
+hello. It is not a condition of anything. I am simply curious who ends up using
+this, and one message costs you nothing.
