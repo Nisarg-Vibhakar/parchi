@@ -8,6 +8,7 @@ import dev.nisarg.paisa.parse.Buckets
 import dev.nisarg.paisa.parse.Categoriser
 import dev.nisarg.paisa.parse.Money
 import dev.nisarg.paisa.parse.Reconciler
+import dev.nisarg.paisa.parse.Suggester
 import dev.nisarg.paisa.parse.TxnParser
 import org.json.JSONObject
 import java.security.MessageDigest
@@ -746,6 +747,51 @@ class PaisaDb(context: Context) : SQLiteOpenHelper(context.applicationContext, N
             arrayOf(category, parsedId.toString())
         )
         if (!merchant.isNullOrBlank()) learnCategory(merchant, category)
+    }
+
+    /**
+     * Gathers what is known about a payee so [Suggester] can rank it.
+     *
+     * All of this already existed; it was just never asked in one place. That is
+     * the whole argument against reaching for a model here — the answer to
+     * "food, fun or people?" is sitting in a table of decisions already made.
+     */
+    fun evidenceFor(merchant: String?): Suggester.Evidence {
+        val favourites = favouriteCategories()
+        if (merchant.isNullOrBlank()) return Suggester.Evidence(favourites = favourites)
+
+        val key = Categoriser.merchantKey(merchant)
+        var learned: String? = null
+        readableDatabase.rawQuery(
+            "SELECT category FROM merchant_categories WHERE merchant_key = ? LIMIT 1",
+            arrayOf(key)
+        ).use { if (it.moveToNext()) learned = it.getString(0) }
+
+        // Payees sharing a distinctive word, and what those were filed as. This
+        // is what lets a new branch of somewhere familiar inherit the answer.
+        val votes = mutableMapOf<String, Int>()
+        val tokens = Suggester.tokens(merchant)
+        if (tokens.isNotEmpty()) {
+            readableDatabase.rawQuery(
+                "SELECT merchant_key, category FROM merchant_categories", null
+            ).use { c ->
+                while (c.moveToNext()) {
+                    val otherKey = c.getString(0) ?: continue
+                    if (otherKey == key) continue
+                    if (tokens.any { otherKey.contains(it) }) {
+                        val cat = c.getString(1) ?: continue
+                        votes[cat] = (votes[cat] ?: 0) + 1
+                    }
+                }
+            }
+        }
+
+        return Suggester.Evidence(
+            learnedForMerchant = learned,
+            ruleGuess = Categoriser.byRule(merchant)?.name,
+            similarVotes = votes,
+            favourites = favourites,
+        )
     }
 
     /** Categories the user actually uses, most-used first — the modal ranks by this. */

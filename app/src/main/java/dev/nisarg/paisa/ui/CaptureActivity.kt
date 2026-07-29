@@ -156,6 +156,11 @@ class CaptureActivity : Activity() {
         }
         s.addView(rule())
         s.addView(line("WHAT WAS IT FOR?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
+        // A hint, with its reasoning, from answers already given. Absent when the
+        // evidence is thin — a shrug printed on the slip is worse than silence.
+        dev.nisarg.paisa.parse.Suggester.hint(db.evidenceFor(p.merchant))?.let {
+            s.addView(line(it, 10f, Receipt.stampGreen, topPad = 2))
+        }
         s.addView(tiles(rank(p.merchant)) { c ->
             db.confirmCategory(p.parsedId, p.merchant, c.name)
             // Collapse the full list again: the next payment gets its own
@@ -235,8 +240,14 @@ class CaptureActivity : Activity() {
         s.addView(line(money(amountMinor), 38f, Receipt.ink, bold = true, tracking = -0.02f))
         s.addView(rule())
         s.addView(line("WHAT WAS IT FOR?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
-        s.addView(tiles(defaults()) { c ->
-            db.addManualSpend(amountMinor, c.name, null); typed = StringBuilder(); render()
+        // A manual payment has no payee to reason about, so there is nothing to
+        // suggest from — but it still gets the full category list. This was the
+        // screen capped at six: type an amount that is none of the six and there
+        // was nowhere to put it.
+        s.addView(tiles(rank(null)) { c ->
+            db.addManualSpend(amountMinor, c.name, null)
+            showingAll = false
+            typed = StringBuilder(); render()
         })
         s.addView(quiet("SAVE WITHOUT A CATEGORY") {
             db.addManualSpend(amountMinor, null, null); typed = StringBuilder(); render()
@@ -322,6 +333,9 @@ class CaptureActivity : Activity() {
             13f, Receipt.inkSoft, topPad = 2))
         s.addView(rule("─"))
         s.addView(line("WHAT WAS IT REALLY?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
+        dev.nisarg.paisa.parse.Suggester.hint(db.evidenceFor(t.merchant))?.let {
+            s.addView(line(it, 10f, Receipt.stampGreen, topPad = 2))
+        }
         s.addView(tiles(rank(t.merchant)) { c ->
             db.confirmCategory(t.parsedId, t.merchant, c.name)
             showingAll = false
