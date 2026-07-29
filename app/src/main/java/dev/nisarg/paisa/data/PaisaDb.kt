@@ -200,7 +200,7 @@ class PaisaDb(context: Context) : SQLiteOpenHelper(context.applicationContext, N
         """.trimIndent()
 
         fun sha1(vararg parts: String?): String {
-            val joined = parts.joinToString(" ") { it ?: "" }
+            val joined = parts.joinToString("\u0000") { it ?: "" }
             val bytes = MessageDigest.getInstance("SHA-1").digest(joined.toByteArray())
             return bytes.joinToString("") { "%02x".format(it) }
         }
