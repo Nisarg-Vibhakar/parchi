@@ -42,36 +42,68 @@ object DailySummary {
     private const val NOTIFICATION_ID = 4201
     const val HOUR = 21
 
+    /**
+     * The call may ring between HOUR and this, and at no other time.
+     *
+     * A phone call about your shopping at one in the morning is worse than no
+     * call at all, and the alarm layer cannot promise it will not deliver late.
+     * So the promise is kept here instead, where it is just an `if`.
+     */
+    const val LATEST_HOUR = 23
+
+    const val ACTION_DECLINE = "decline"
+    const val ACTION_SNOOZE = "snooze"
+
+    /** Two hours: long enough to finish dinner, short enough to still be today. */
+    const val SNOOZE_MS = 2 * 60 * 60 * 1000L
+
+    /**
+     * Arms the next evening's call. One-shot, re-armed after every delivery.
+     *
+     * This used to be `setInexactRepeating(RTC, …, INTERVAL_DAY, …)` and it
+     * produced a call at one in the morning. Two things were wrong. `RTC`
+     * without `_WAKEUP` does not wake the device, so a 9pm alarm on a sleeping
+     * phone was not delivered at all — it sat pending until something else woke
+     * the device, and a payment SMS at 00:30 did exactly that. And Doze defers
+     * day-length inexact repeats hard, so even awake it drifted.
+     *
+     * `setAndAllowWhileIdle` survives Doze and still needs no
+     * SCHEDULE_EXACT_ALARM, which this feature does not deserve. It is one-shot,
+     * hence the re-arm in [DailySummaryReceiver].
+     */
     fun schedule(context: Context) {
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        val pi = PendingIntent.getBroadcast(
-            context, 1, Intent(context, DailySummaryReceiver::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
         val next = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, HOUR)
             set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
             if (timeInMillis <= System.currentTimeMillis()) add(Calendar.DAY_OF_YEAR, 1)
         }
-        // Inexact on purpose: a spending summary is never worth waking the device
-        // for, and an exact alarm would need a permission this does not deserve.
-        am.setInexactRepeating(
-            AlarmManager.RTC, next.timeInMillis, AlarmManager.INTERVAL_DAY, pi
-        )
+        am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.timeInMillis, dailyIntent(context))
         Log.i(TAG, "daily summary scheduled for ${next.time}")
     }
 
-    /** Declining still records the call; it just does not ring again. */
-    private fun declineIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
-        context, 4, Intent(context, SnoozeReceiver::class.java).setAction("decline"),
+    private fun dailyIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context, 1, Intent(context, DailySummaryReceiver::class.java),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
 
-    /** Rings again after the snooze, so a busy moment does not lose the day. */
+    /** Declining still records the call; it just does not ring again. */
+    private fun declineIntent(context: Context): PendingIntent = PendingIntent.getBroadcast(
+        context, 4, Intent(context, SnoozeReceiver::class.java).setAction(ACTION_DECLINE),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    )
+
+    /**
+     * Rings again after the snooze, so a busy moment does not lose the day.
+     *
+     * Same wakeup treatment as [schedule] — with plain `RTC` the callback was
+     * deferred or dropped while the device dozed, which is why snoozing appeared
+     * to do nothing at all.
+     */
     fun scheduleSnoozeCallback(context: Context, delayMs: Long) {
         val am = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-        am.set(
-            AlarmManager.RTC, System.currentTimeMillis() + delayMs,
+        am.setAndAllowWhileIdle(
+            AlarmManager.RTC_WAKEUP, System.currentTimeMillis() + delayMs,
             PendingIntent.getBroadcast(
                 context, 5, Intent(context, DailySummaryReceiver::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
@@ -80,7 +112,31 @@ object DailySummary {
         Log.i(TAG, "callback in ${delayMs / 60000} minutes")
     }
 
+    /**
+     * Clears the call notification. Every way out of the call screen has to go
+     * through here — dismissing the full-screen call used to leave "calling"
+     * sitting in the shade, because only the decline broadcast ever cancelled it.
+     */
+    fun dismiss(context: Context) {
+        context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
+    }
+
+    /** True when the clock is inside the window this feature is allowed to ring in. */
+    fun withinCallingHours(nowMs: Long = System.currentTimeMillis()): Boolean {
+        val hour = Calendar.getInstance().apply { timeInMillis = nowMs }.get(Calendar.HOUR_OF_DAY)
+        return hour in HOUR..LATEST_HOUR
+    }
+
     fun post(context: Context) {
+        // A late delivery must never ring. The alarm layer gives no guarantee it
+        // will fire on time, so the guarantee lives here: outside the window,
+        // re-arm for tomorrow evening and stay silent.
+        if (!withinCallingHours()) {
+            Log.i(TAG, "delivered outside $HOUR:00-$LATEST_HOUR:59 — re-arming, not calling")
+            schedule(context)
+            return
+        }
+
         val db = PaisaDb.get(context)
         val startOfDay = Calendar.getInstance().apply {
             set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
@@ -212,10 +268,26 @@ object DailySummary {
     }
 }
 
+/**
+ * Handles the notification's own actions.
+ *
+ * This used to ignore [Intent.getAction] entirely and treat every broadcast as a
+ * decline, which is why snoozing from the notification did nothing: it recorded
+ * a decline and cancelled, and no callback was ever scheduled.
+ */
 class SnoozeReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        PaisaDb.get(context.applicationContext).snooze(0L)
-        context.getSystemService(NotificationManager::class.java).cancel(4201)
+        val app = context.applicationContext
+        val db = PaisaDb.get(app)
+        when (intent.action) {
+            DailySummary.ACTION_SNOOZE -> {
+                db.snooze(System.currentTimeMillis() + DailySummary.SNOOZE_MS)
+                DailySummary.scheduleSnoozeCallback(app, DailySummary.SNOOZE_MS)
+            }
+            // Decline, and anything unrecognised: recorded, but not called back.
+            else -> db.snooze(0L)
+        }
+        DailySummary.dismiss(app)
     }
 }
 
@@ -224,7 +296,16 @@ class DailySummaryReceiver : BroadcastReceiver() {
         val pending = goAsync()
         val app = context.applicationContext
         Thread {
-            try { DailySummary.post(app) } finally { pending.finish() }
+            try {
+                DailySummary.post(app)
+            } finally {
+                // The daily alarm is one-shot now, so every delivery has to arm
+                // the next one or the feature quietly stops after a single day.
+                // post() also re-arms when it declines to ring; doing it twice is
+                // harmless, missing it once is not.
+                runCatching { DailySummary.schedule(app) }
+                pending.finish()
+            }
         }.start()
     }
 }

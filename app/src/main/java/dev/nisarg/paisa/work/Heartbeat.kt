@@ -43,6 +43,12 @@ object Heartbeat {
 class HeartbeatReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         PaisaDb.get(context).beat("alarm")
+        // The daily call is a one-shot alarm that re-arms itself after each
+        // delivery. That chain is reliable but it is still a chain, and one
+        // dropped link would stop the feature silently until the next reboot.
+        // This already runs every six hours; re-arming here costs nothing and
+        // makes the failure self-healing.
+        DailySummary.schedule(context)
     }
 }
 

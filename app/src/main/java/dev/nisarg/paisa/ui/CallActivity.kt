@@ -109,6 +109,13 @@ class CallActivity : Activity() {
         super.onDestroy()
         ringer?.cancel()
         Ringer.stop()
+        // Every way out of this screen ends here — answered, snoozed, declined,
+        // rang out, or backed out of — so this is the one place that reliably
+        // clears the notification. Without it, dismissing the full-screen call
+        // left "calling" sitting in the shade indefinitely, because only the
+        // decline broadcast ever cancelled it. Guarded on isFinishing so a
+        // configuration change does not silently dismiss a live call.
+        if (isFinishing) DailySummary.dismiss(this)
     }
 
     /** Leaving the screen must silence it — a ringtone outliving its call is a bug. */
@@ -230,8 +237,8 @@ class CallActivity : Activity() {
         // cannot quietly erase the day.
         roll.addView(action("SNOOZE  —  CALL BACK LATER", Receipt.ink) {
             Ringer.stop()
-            db.snooze(System.currentTimeMillis() + 2 * 60 * 60 * 1000L)
-            DailySummary.scheduleSnoozeCallback(this, 2 * 60 * 60 * 1000L)
+            db.snooze(System.currentTimeMillis() + DailySummary.SNOOZE_MS)
+            DailySummary.scheduleSnoozeCallback(this, DailySummary.SNOOZE_MS)
             finish()
         })
         roll.addView(quiet(Caller.declineLabel(who.mood)) {
