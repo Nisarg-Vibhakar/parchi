@@ -158,10 +158,14 @@ class CaptureActivity : Activity() {
         s.addView(line("WHAT WAS IT FOR?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
         s.addView(tiles(rank(p.merchant)) { c ->
             db.confirmCategory(p.parsedId, p.merchant, c.name)
+            // Collapse the full list again: the next payment gets its own
+            // shortlist, and it is usually right.
+            showingAll = false
             typed = StringBuilder(); render()
         })
         s.addView(quiet("NOT A SPEND — SKIP") {
-            db.confirmCategory(p.parsedId, null, Categoriser.Category.OTHER.name); render()
+            db.confirmCategory(p.parsedId, null, Categoriser.Category.OTHER.name)
+            showingAll = false; render()
         })
         return s
     }
@@ -231,8 +235,13 @@ class CaptureActivity : Activity() {
         s.addView(line(money(amountMinor), 38f, Receipt.ink, bold = true, tracking = -0.02f))
         s.addView(rule())
         s.addView(line("WHAT WAS IT FOR?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
-        s.addView(tiles(defaults()) { c ->
-            db.addManualSpend(amountMinor, c.name, null); typed = StringBuilder(); render()
+        // The full list, not just the six defaults. This was the screen the cap
+        // actually hurt: type an amount that is none of the six and there was
+        // nowhere to put it.
+        s.addView(tiles(rank(null)) { c ->
+            db.addManualSpend(amountMinor, c.name, null)
+            showingAll = false
+            typed = StringBuilder(); render()
         })
         s.addView(quiet("SAVE WITHOUT A CATEGORY") {
             db.addManualSpend(amountMinor, null, null); typed = StringBuilder(); render()
@@ -259,6 +268,29 @@ class CaptureActivity : Activity() {
         s.addView(rule("─"))
         s.addView(leaderRow("PAYMENTS", "${db.countSince(startOfDay)}", Receipt.inkSoft, Receipt.inkSoft))
         s.addView(leaderRow("THIS WEEK", money(db.spentSince(week)), Receipt.inkSoft, Receipt.inkSoft))
+        // What the app decided on its own today, and a way to disagree with it.
+        //
+        // Until now a wrong guess was unreachable: the row was already
+        // categorised, so it never came up on a screen that asks anything. A
+        // restaurant sat in HEALTH because its name contained "hospitality" and
+        // there was nowhere to say otherwise. The point of the back-tap is to be
+        // the fastest surface in the app, so the correction belongs here rather
+        // than three taps into the receipt.
+        val guessed = db.autoFiledBetween(startOfDay, System.currentTimeMillis())
+        if (guessed.isNotEmpty()) {
+            s.addView(rule("─"))
+            s.addView(line("PARCHI FILED THESE — TAP TO CHANGE", 10.5f,
+                Receipt.inkSoft, tracking = 0.14f))
+            for (t in guessed) {
+                val name = t.merchant?.let { db.displayName(it) } ?: "UNKNOWN"
+                s.addView(leaderRow(
+                    name.uppercase().take(18),
+                    "${money(t.amountMinor)}  ${t.category?.lowercase() ?: "?"}",
+                    Receipt.ink, Receipt.stampAmber,
+                ) { show(correctionSlip(t)) })
+            }
+        }
+
         s.addView(rule())
         s.addView(action("+ ADD A PAYMENT") { show(manualSlip()) })
         s.addView(quiet("SEE THE FULL RECEIPT") {
@@ -275,7 +307,42 @@ class CaptureActivity : Activity() {
         return s
     }
 
+    /**
+     * Disagreeing with a category the app chose.
+     *
+     * Reuses the same confirm path as a fresh spend, so the correction is not
+     * just applied to this row — it is learned for the merchant and replayed
+     * across every past and future payment to them. Correcting one lunch fixes
+     * the whole restaurant.
+     */
+    private fun correctionSlip(t: PaisaDb.Txn): LinearLayout {
+        val s = slipBody()
+        s.addView(line("P A R C H I", 12f, Receipt.inkSoft, bold = true,
+            centre = true, tracking = 0.3f, topPad = 8))
+        s.addView(rule("═"))
+        s.addView(line("PARCHI FILED THIS AS ${t.category?.uppercase() ?: "?"}",
+            10.5f, Receipt.stampAmber, tracking = 0.14f))
+        s.addView(line(money(t.amountMinor), 38f, Receipt.ink, bold = true, tracking = -0.02f))
+        s.addView(line((t.merchant?.let { db.displayName(it) } ?: "UNKNOWN").uppercase(),
+            13f, Receipt.inkSoft, topPad = 2))
+        s.addView(rule("─"))
+        s.addView(line("WHAT WAS IT REALLY?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
+        s.addView(tiles(rank(t.merchant)) { c ->
+            db.confirmCategory(t.parsedId, t.merchant, c.name)
+            showingAll = false
+            render()
+        })
+        s.addView(quiet("LEAVE IT — PARCHI WAS RIGHT") { showingAll = false; render() })
+        return s
+    }
+
     // ---- parts -------------------------------------------------------------
+
+    /** How many ranked guesses the slip offers before the "all of them" tile. */
+    private val SHORTLIST = 6
+
+    /** True while the full list is open, so a re-render keeps it open. */
+    private var showingAll = false
 
     private fun rank(merchant: String?): List<Categoriser.Category> {
         val out = LinkedHashSet<Categoriser.Category>()
@@ -284,7 +351,12 @@ class CaptureActivity : Activity() {
             runCatching { Categoriser.Category.valueOf(n) }.getOrNull()?.let(out::add)
         }
         out.addAll(defaults())
-        return out.take(6)
+        // Ranked first, then everything else in declaration order. The slip shows
+        // the first SHORTLIST and keeps the rest one tap away rather than
+        // discarding them — six of twenty-three meant a payment that was none of
+        // the six had nowhere to go.
+        out.addAll(Categoriser.Category.entries)
+        return out.toList()
     }
 
     private fun defaults() = listOf(
@@ -293,27 +365,46 @@ class CaptureActivity : Activity() {
         Categoriser.Category.BILLS, Categoriser.Category.PEOPLE,
     )
 
+    /**
+     * The category grid.
+     *
+     * Shows the ranked shortlist with a MORE tile; tapping it swaps to the full
+     * set in place. The shortlist is right almost every time — the point of MORE
+     * is that "almost" is not "always", and the six are only ever a guess.
+     */
     private fun tiles(cats: List<Categoriser.Category>, onPick: (Categoriser.Category) -> Unit) =
         GridLayout(this).apply {
             columnCount = 3
             setPadding(0, px(8), 0, 0)
-            for (c in cats) addView(TextView(this@CaptureActivity).apply {
-                text = c.label.uppercase()
-                textSize = 12f
-                typeface = Receipt.mono
-                gravity = Gravity.CENTER
-                setTextColor(Receipt.ink)
-                contentDescription = "Category ${c.label}"
-                // A dashed cell, not a rounded chip — same world as the rules.
-                background = dashedCell()
-                minHeight = px(Design.TOUCH_MIN + 8)
-                layoutParams = GridLayout.LayoutParams().apply {
-                    width = 0; height = WRAP_CONTENT
-                    columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
-                    setMargins(px(3), px(3), px(3), px(3))
+
+            val shown = if (showingAll) cats else cats.take(SHORTLIST)
+
+            fun cell(label: String, colour: Int, describe: String, onTap: () -> Unit) =
+                TextView(this@CaptureActivity).apply {
+                    text = label
+                    textSize = 12f
+                    typeface = Receipt.mono
+                    gravity = Gravity.CENTER
+                    setTextColor(colour)
+                    contentDescription = describe
+                    // A dashed cell, not a rounded chip — same world as the rules.
+                    background = dashedCell()
+                    minHeight = px(Design.TOUCH_MIN + 8)
+                    layoutParams = GridLayout.LayoutParams().apply {
+                        width = 0; height = WRAP_CONTENT
+                        columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1f)
+                        setMargins(px(3), px(3), px(3), px(3))
+                    }
+                    setOnClickListener { onTap() }
                 }
-                setOnClickListener { onPick(c) }
-            })
+
+            for (c in shown) {
+                addView(cell(c.label.uppercase(), Receipt.ink, "Category ${c.label}") { onPick(c) })
+            }
+            if (!showingAll && cats.size > SHORTLIST) {
+                addView(cell("MORE  +${cats.size - SHORTLIST}", Receipt.stampAmber,
+                    "Show all ${cats.size} categories") { showingAll = true; render() })
+            }
         }
 
     private fun dashedCell() = android.graphics.drawable.GradientDrawable().apply {
