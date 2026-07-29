@@ -217,15 +217,59 @@ object Categoriser {
      */
     private const val SAFE_SUBSTRING_LENGTH = 5
 
-    private fun matches(keyword: String, squashed: String, words: List<String>): Boolean =
-        words.contains(keyword) ||
-            (keyword.length >= SAFE_SUBSTRING_LENGTH && squashed.contains(keyword)) ||
-            // Short brand names — uber, ola, jio, cred — cannot match by
-            // substring without colliding, but they are safe as a PREFIX:
-            // "uberindiasystem187204" starts with "uber", while "bankofbaroda"
-            // does not start with "bar" and "sportomic" does not start with
-            // "rto". Without this, a four-letter brand was unmatchable.
-            squashed.startsWith(keyword)
+    /**
+     * Endings that turn a word into a different word.
+     *
+     * Length was never the whole story. "hospital" is eight characters — rare
+     * enough by the rule above — and it still fired inside "hospitality",
+     * filing a restaurant as a medical expense. The keyword was not colliding
+     * with an unrelated fragment; it was a *truncation* of a longer word, which
+     * the length guard cannot see.
+     *
+     * Only derivational endings are listed. Plurals are deliberately absent:
+     * "medicals" is still medical, and "-al" is absent because "clinical" is
+     * still a clinic.
+     */
+    private val TRUNCATIONS = listOf("ity", "ities", "ies", "ure", "ing", "ism", "ist")
+
+    /**
+     * Does [keyword] sit inside [word] as an idea of its own, rather than as the
+     * front half of a different word?
+     */
+    private fun believableIn(keyword: String, word: String): Boolean {
+        var i = word.indexOf(keyword)
+        while (i >= 0) {
+            val tail = word.substring(i + keyword.length)
+            if (TRUNCATIONS.none { tail.startsWith(it) }) return true
+            i = word.indexOf(keyword, i + 1)
+        }
+        return false
+    }
+
+    private fun matches(keyword: String, squashed: String, words: List<String>): Boolean {
+        if (words.contains(keyword)) return true
+
+        if (keyword.length >= SAFE_SUBSTRING_LENGTH) {
+            // Inside one word — but only if it is not a truncation of that word.
+            // Checked per word rather than against the whole squashed string,
+            // because there the following word supplies a long innocent-looking
+            // tail: "SHREE HOSPITALITY LLP" squashes to something where
+            // "hospital" is followed by "itygroup", and the truncation is hidden.
+            if (words.any { believableIn(keyword, it) }) return true
+
+            // Or it spans a separator, which single words cannot show:
+            // "CREDIT CARD BILL" only contains "creditcardbill" once squashed.
+            if (squashed.contains(keyword) && words.none { it.contains(keyword) }) return true
+        }
+
+        // Short brand names — uber, ola, jio, cred — cannot match by substring
+        // without colliding, but they are safe at the very START of the whole
+        // merchant string: "uberindiasystem187204" begins with "uber", while
+        // "bankofbaroda" does not begin with "bar" and "sportomic" does not
+        // begin with "rto". Deliberately the squashed string and not each word,
+        // because "baroda" *does* begin with "bar".
+        return squashed.startsWith(keyword)
+    }
 
     private fun normalise(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
 
