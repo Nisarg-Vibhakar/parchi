@@ -790,6 +790,39 @@ class PaisaDb(context: Context) : SQLiteOpenHelper(context.applicationContext, N
         val at: Long,
     )
 
+    /**
+     * What the app filed on its own inside a window, newest first.
+     *
+     * These are the guesses nobody has checked. A rule put "hospitality" in
+     * HEALTH and filed a restaurant as a medical expense, and because the row
+     * was already categorised it never appeared on any screen that asks a
+     * question — it was silently wrong and there was no way to reach it.
+     *
+     * Only sources the app chose itself: 'manual', 'learned' and 'split' are
+     * answers a human already gave, and offering to re-check those is nagging.
+     */
+    fun autoFiledBetween(from: Long, to: Long, limit: Int = 12): List<Txn> {
+        val out = mutableListOf<Txn>()
+        readableDatabase.rawQuery(
+            """
+            SELECT p.id, p.amount_minor, p.merchant_raw, p.category, r.posted_at
+            FROM parsed_txn p JOIN raw_events r ON r.id = p.raw_event_id
+            WHERE p.rejected_reason IS NULL AND p.direction = 'DEBIT'
+              AND p.amount_minor IS NOT NULL
+              AND p.category IS NOT NULL
+              AND p.category_source IN ('rule', 'bulk', 'forgotten')
+              AND r.posted_at >= ? AND r.posted_at <= ?
+            ORDER BY r.posted_at DESC LIMIT ?
+            """.trimIndent(),
+            arrayOf(from.toString(), to.toString(), limit.toString())
+        ).use { c ->
+            while (c.moveToNext()) {
+                out += Txn(c.getLong(0), c.getLong(1), c.getString(2), c.getString(3), c.getLong(4))
+            }
+        }
+        return out
+    }
+
     fun spentBetween(from: Long, to: Long): Long =
         readableDatabase.rawQuery(
             """
@@ -870,28 +903,35 @@ class PaisaDb(context: Context) : SQLiteOpenHelper(context.applicationContext, N
         val totalMinor: Long,
         val count: Int,
         val ruleGuess: String?,
+        /** When this merchant was last paid — what the queue is ordered by. */
+        val lastAt: Long = 0L,
     )
 
     /**
-     * Unfiled spend grouped by merchant, biggest money first.
+     * Unfiled spend grouped by merchant, most recently paid first.
      *
      * Filing per transaction is hopeless at 751 rows. Filing per *merchant* is
-     * not: the same payees repeat, so one tap can settle dozens of rows, and
-     * ordering by value means the backlog's rupee total collapses fastest even
-     * if you stop after a minute.
+     * not: the same payees repeat, so one tap can settle dozens of rows.
+     *
+     * This used to be ordered by value, on the reasoning that the backlog's
+     * rupee total then collapses fastest even if you stop after a minute. That
+     * optimises the wrong thing. The hard part of filing is not tapping, it is
+     * *remembering* — you know what yesterday's payment was for and you have no
+     * idea about one from March. Newest first puts the answerable ones at the
+     * top, and a merchant you cannot place is worth nothing however large it is.
      */
     fun unfiledMerchants(limit: Int = 60): List<UnfiledMerchant> {
         val out = mutableListOf<UnfiledMerchant>()
         readableDatabase.rawQuery(
             """
-            SELECT p.merchant_raw, SUM(p.amount_minor) t, COUNT(*) n
+            SELECT p.merchant_raw, SUM(p.amount_minor) t, COUNT(*) n, MAX(r.posted_at) last_at
             FROM parsed_txn p JOIN raw_events r ON r.id = p.raw_event_id
             WHERE p.rejected_reason IS NULL AND p.direction = 'DEBIT'
               AND p.amount_minor IS NOT NULL
               AND p.merchant_raw IS NOT NULL AND TRIM(p.merchant_raw) <> ''
               AND p.category IS NULL
               AND r.posted_at >= ?
-            GROUP BY p.merchant_raw ORDER BY t DESC LIMIT ?
+            GROUP BY p.merchant_raw ORDER BY last_at DESC LIMIT ?
             """.trimIndent(),
             arrayOf(historyFloor().toString(), limit.toString())
         ).use { c ->
@@ -899,7 +939,8 @@ class PaisaDb(context: Context) : SQLiteOpenHelper(context.applicationContext, N
                 val name = c.getString(0)
                 out += UnfiledMerchant(
                     name, c.getLong(1), c.getInt(2),
-                    Categoriser.byRule(name)?.name
+                    Categoriser.byRule(name)?.name,
+                    c.getLong(3)
                 )
             }
         }
