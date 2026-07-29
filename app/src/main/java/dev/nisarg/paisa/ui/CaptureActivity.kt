@@ -235,8 +235,13 @@ class CaptureActivity : Activity() {
         s.addView(line(money(amountMinor), 38f, Receipt.ink, bold = true, tracking = -0.02f))
         s.addView(rule())
         s.addView(line("WHAT WAS IT FOR?", 10.5f, Receipt.inkSoft, tracking = 0.18f))
-        s.addView(tiles(defaults()) { c ->
-            db.addManualSpend(amountMinor, c.name, null); typed = StringBuilder(); render()
+        // The full list, not just the six defaults. This was the screen the cap
+        // actually hurt: type an amount that is none of the six and there was
+        // nowhere to put it.
+        s.addView(tiles(rank(null)) { c ->
+            db.addManualSpend(amountMinor, c.name, null)
+            showingAll = false
+            typed = StringBuilder(); render()
         })
         s.addView(quiet("SAVE WITHOUT A CATEGORY") {
             db.addManualSpend(amountMinor, null, null); typed = StringBuilder(); render()
