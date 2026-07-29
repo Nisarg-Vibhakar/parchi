@@ -427,8 +427,8 @@ class HomeActivity : Activity() {
 
     private fun recent(roll: LinearLayout) {
         roll.addView(rule())
-        roll.addView(line("RECENT", 11.5f, Receipt.inkSoft, tracking = 0.14f))
-        val txns = db.recentTransactions(12)
+        roll.addView(line("RECENT — TAP ANY LINE TO REFILE", 11.5f, Receipt.inkSoft, tracking = 0.14f))
+        val txns = db.recentTransactions(30)
         if (txns.isEmpty()) {
             roll.addView(line("nothing captured yet", 12f, Receipt.inkFaint, topPad = 6)); return
         }
@@ -436,7 +436,7 @@ class HomeActivity : Activity() {
             roll.addView(leaderRow(
                 "${date(t.at)} ${db.displayName(t.merchant).take(16).uppercase()}",
                 money(t.amountMinor), Receipt.ink
-            ))
+            ) { refile(t) })
             roll.addView(line(
                 "        " + (t.category?.let {
                     runCatching { Categoriser.Category.valueOf(it).label.lowercase() }.getOrDefault(it)
@@ -444,5 +444,43 @@ class HomeActivity : Activity() {
                 10.5f, Receipt.inkFaint
             ))
         }
+    }
+
+    /**
+     * Change the category of any payment, however old.
+     *
+     * The back-tap slip offers to fix what was filed *today*, which covers a
+     * wrong guess while you still remember the payment. It does not cover the
+     * one you notice a week later — a restaurant sitting in HEALTH because its
+     * name contains "hospitality" — and that was the case that started all of
+     * this. Every row of RECENT is now a way in.
+     *
+     * Goes through the same confirm path as a fresh spend, so the answer is
+     * learned for the merchant and replayed across their whole history rather
+     * than patching this one row.
+     */
+    private fun refile(t: PaisaDb.Txn) {
+        val cats = Categoriser.Category.entries
+        val current = t.category
+        val labels = cats.map { c ->
+            if (c.name == current) "• ${c.label}   (filed here now)" else "  ${c.label}"
+        }.toTypedArray()
+
+        android.app.AlertDialog.Builder(this)
+            .setTitle(db.displayName(t.merchant).take(28))
+            .setItems(labels) { _, which ->
+                val picked = cats[which]
+                if (picked.name != current) {
+                    db.confirmCategory(t.parsedId, t.merchant, picked.name)
+                    android.widget.Toast.makeText(
+                        this,
+                        "filed as ${picked.label} — and every payment to this payee",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                    draw()
+                }
+            }
+            .setNegativeButton("LEAVE IT", null)
+            .show()
     }
 }
